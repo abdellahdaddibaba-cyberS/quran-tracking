@@ -1,0 +1,3 @@
+@echo off
+echo Starting Quran Tracking System...
+npm run dev
