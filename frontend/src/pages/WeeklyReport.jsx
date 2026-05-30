@@ -8,19 +8,19 @@ import { halaqatAPI, studentsAPI, trackingAPI } from '../services/api';
 function getWeekDays(dateInput) {
   const [y, m, d] = dateInput.split('-');
   const date = new Date(y, m - 1, d);
-  const day = date.getDay();
-  const diffToSat = day === 6 ? 0 : day + 1;
-  const saturday = new Date(date);
-  saturday.setDate(date.getDate() - diffToSat);
+  const day = date.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
+  const diffToSun = day;
+  const sunday = new Date(date);
+  sunday.setDate(date.getDate() - diffToSun);
   const days = [];
   const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
   for (let i = 0; i < 6; i++) {
-    const current = new Date(saturday);
-    current.setDate(saturday.getDate() + i);
+    const current = new Date(sunday);
+    current.setDate(sunday.getDate() + i);
     days.push({
-      dateStr: `${current.getFullYear()}-${String(current.getMonth()+1).padStart(2,'0')}-${String(current.getDate()).padStart(2,'0')}`,
+      dateStr: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`,
       label: dayNames[current.getDay()],
-      shortDate: current.toLocaleDateString('en-GB', { month: 'numeric', day: 'numeric' }),
+      shortDate: current.toLocaleDateString('ar-DZ', { month: 'numeric', day: 'numeric' }),
     });
   }
   return days;
@@ -28,18 +28,19 @@ function getWeekDays(dateInput) {
 
 function toLocalDate(isoStr) {
   const d = new Date(isoStr);
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export default function WeeklyReport() {
   const [baseDate, setBaseDate] = useState(() => {
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return today < '2026-06-14' ? '2026-06-14' : today;
   });
   const weekDays = useMemo(() => getWeekDays(baseDate), [baseDate]);
 
   const weekName = useMemo(() => {
-    const start = new Date(2026, 4, 2);
+    const start = new Date(2026, 5, 14);
     const [y, m, d] = baseDate.split('-');
     const current = new Date(y, m - 1, d);
     const diffDays = Math.floor((current - start) / (1000 * 60 * 60 * 24));
@@ -48,14 +49,14 @@ export default function WeeklyReport() {
     return names[weekNum - 1] || String(weekNum);
   }, [baseDate]);
 
-  const [halaqat,       setHalaqat]       = useState([]);
+  const [halaqat, setHalaqat] = useState([]);
   const [selectedHalaqa, setSelectedHalaqa] = useState('');
-  const [students,       setStudents]       = useState([]);
-  const [matrix,         setMatrix]         = useState({});
-  const [loading,        setLoading]        = useState(false);
+  const [students, setStudents] = useState([]);
+  const [matrix, setMatrix] = useState({});
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    halaqatAPI.getAll().then(r => setHalaqat(r.data.data)).catch(() => {});
+    halaqatAPI.getAll().then(r => setHalaqat(r.data.data)).catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -64,13 +65,13 @@ export default function WeeklyReport() {
       setLoading(true);
       try {
         const startDate = weekDays[0].dateStr;
-        const endDate   = weekDays[5].dateStr;
+        const endDate = weekDays[5].dateStr;
         const [sRes, tRes] = await Promise.all([
           studentsAPI.getByHalaqa(selectedHalaqa),
           trackingAPI.getByHalaqa(selectedHalaqa, { startDate, endDate }),
         ]);
-        const fetchedStudents  = sRes.data.data;
-        const fetchedTracking  = tRes.data.data;
+        const fetchedStudents = sRes.data.data;
+        const fetchedTracking = tRes.data.data;
 
         const m = {};
         fetchedStudents.forEach(st => {
@@ -78,7 +79,7 @@ export default function WeeklyReport() {
           weekDays.forEach(day => { m[st._id][day.dateStr] = null; });
         });
         fetchedTracking.forEach(rec => {
-          const sid  = rec.studentId?._id || rec.studentId;
+          const sid = rec.studentId?._id || rec.studentId;
           const rDate = toLocalDate(rec.date);
           if (m[sid]) m[sid][rDate] = { pages: rec.pagesMemorized, attendance: rec.attendance, isLate: rec.isLate };
         });
@@ -95,8 +96,8 @@ export default function WeeklyReport() {
     const [y, m, d] = baseDate.split('-');
     const dateObj = new Date(y, m - 1, d);
     dateObj.setDate(dateObj.getDate() + offset * 7);
-    let newDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`;
-    if (newDate < '2026-05-02') newDate = '2026-05-02';
+    let newDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+    if (newDate < '2026-06-14') newDate = '2026-06-14';
     setBaseDate(newDate);
   };
 
@@ -115,9 +116,9 @@ export default function WeeklyReport() {
     }, 0);
 
   const dayRequired = students.reduce((s, st) => s + st.dailyTarget, 0);
-  const grandTotal  = students.reduce((s, st) => s + weekTotal(st), 0);
-  const grandReq    = students.reduce((s, st) => s + weekRequired(st), 0);
-  const grandPct    = grandReq > 0 ? Math.round((grandTotal / grandReq) * 100) : 0;
+  const grandTotal = students.reduce((s, st) => s + weekTotal(st), 0);
+  const grandReq = students.reduce((s, st) => s + weekRequired(st), 0);
+  const grandPct = grandReq > 0 ? Math.round((grandTotal / grandReq) * 100) : 0;
 
   const levelColor = { level1: '#818cf8', level2: '#22d3ee', level3: '#f59e0b', level4: '#4ade80' };
   const levelLabel = { level1: 'الأول', level2: 'الثاني', level3: 'الثالث', level4: 'الرابع' };
@@ -127,7 +128,7 @@ export default function WeeklyReport() {
     const toastId = toast.loading('جاري تصدير التقرير الفاخر...');
     try {
       const startDate = weekDays[0].dateStr;
-      const endDate   = weekDays[5].dateStr;
+      const endDate = weekDays[5].dateStr;
 
       const [hRes, sRes, tRes, totalRes] = await Promise.all([
         halaqatAPI.getAll(),
@@ -136,7 +137,7 @@ export default function WeeklyReport() {
         trackingAPI.getAllRange({ startDate: '2000-01-01', endDate: '2099-12-31' }) // جلب كل التاريخ للتراكمي
       ]);
 
-      const allHalaqat  = hRes.data.data;
+      const allHalaqat = hRes.data.data;
       const allStudents = sRes.data.data;
       const allTracking = tRes.data.data;
       const fullHistory = totalRes.data.data;
@@ -155,7 +156,7 @@ export default function WeeklyReport() {
 
       // ─── 1. صفحة الملخص العام (Summary Dashboard) ───
       const summarySheet = workbook.addWorksheet('الملخص العام', { views: [{ rightToLeft: true, showGridLines: false }] });
-      
+
       summarySheet.mergeCells('A1:F2');
       const sTitle = summarySheet.getCell('A1');
       sTitle.value = 'لوحة التحكم وإحصائيات الإنجاز الأسبوعي';
@@ -192,8 +193,8 @@ export default function WeeklyReport() {
         const hStudents = allStudents.filter(s => (s.halaqaId?._id || s.halaqaId) === h._id);
         const hPages = allTracking.filter(r => hStudents.some(s => (r.studentId?._id || r.studentId) === s._id)).reduce((s, r) => s + r.pagesMemorized, 0);
         const hReq = hStudents.length * 6; // تبسيط للتمثيل
-        const hPct = hReq > 0 ? Math.round((hPages / (hStudents.reduce((s,st)=>s+st.dailyTarget,0)*6)) * 100) : 0;
-        
+        const hPct = hReq > 0 ? Math.round((hPages / (hStudents.reduce((s, st) => s + st.dailyTarget, 0) * 6)) * 100) : 0;
+
         const r = summarySheet.addRow([i + 1, h.name, h.supervisor, hStudents.length, `${hPct}%`, hPct >= 80 ? 'ممتاز' : hPct >= 50 ? 'جيد' : 'يحتاج متابعة']);
         r.alignment = { horizontal: 'center' };
       });
@@ -224,7 +225,7 @@ export default function WeeklyReport() {
         infoCard.font = { name: 'Arial', size: 12, color: { argb: colors.textDark } };
         infoCard.alignment = { wrapText: true, horizontal: 'right', vertical: 'middle' };
         infoCard.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.grayBg } };
-        infoCard.border = { 
+        infoCard.border = {
           left: { style: 'thick', color: { argb: colors.emerald } },
           bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } }
         };
@@ -255,7 +256,7 @@ export default function WeeklyReport() {
           { header: 'الإنجاز التراكمي', key: 'cumulative', width: 15 },
           { header: 'النسبة', key: 'pct', width: 12 }
         ];
-        
+
         // نحدد المفاتيح والعرض فقط حتى لا يقوم ExcelJS بكتابة الهيدر في الصف الأول (فوق العنوان)
         worksheet.columns = columns.map(col => ({ key: col.key, width: col.width }));
 
@@ -281,7 +282,7 @@ export default function WeeklyReport() {
             sTotal += val;
           });
           rowData.total = sTotal;
-          
+
           // حساب الإنجاز التراكمي من التاريخ الكامل
           const sFullTotal = fullHistory
             .filter(r => (r.studentId?._id === st._id || r.studentId === st._id))
@@ -297,7 +298,7 @@ export default function WeeklyReport() {
           row.eachCell((cell, colNumber) => {
             cell.alignment = { vertical: 'middle', horizontal: 'center' };
             cell.border = { bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } } };
-            
+
             if (colNumber === 2) { // Name
               cell.font = { bold: true, size: 11 };
               cell.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
@@ -330,7 +331,7 @@ export default function WeeklyReport() {
 
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      
+
       // طريقة يدوية قوية للتحميل لضمان الاسم والامتداد
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -388,7 +389,7 @@ export default function WeeklyReport() {
             <label className="form-label">الأسبوع</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <button className="btn btn-secondary" onClick={() => shiftWeek(-1)} title="الأسبوع السابق"><ChevronRight size={18} /></button>
-              <input type="date" className="form-control" min="2026-05-02" value={baseDate} onChange={e => { if (e.target.value >= '2026-05-02') setBaseDate(e.target.value); }} style={{ textAlign: 'center' }} />
+              <input type="date" className="form-control" min="2026-06-14" value={baseDate} onChange={e => { if (e.target.value >= '2026-06-14') setBaseDate(e.target.value); }} style={{ textAlign: 'center' }} />
               <button className="btn btn-secondary" onClick={() => shiftWeek(1)} title="الأسبوع القادم"><ChevronLeft size={18} /></button>
             </div>
           </div>
@@ -419,8 +420,8 @@ export default function WeeklyReport() {
             <tbody>
               {students.map((st, idx) => {
                 const total = weekTotal(st);
-                const req   = weekRequired(st);
-                const pct   = req > 0 ? Math.round((total / req) * 100) : 0;
+                const req = weekRequired(st);
+                const pct = req > 0 ? Math.round((total / req) * 100) : 0;
                 const pctColor = pct >= 80 ? 'var(--green-400)' : pct >= 50 ? 'var(--gold-400)' : 'var(--danger)';
                 return (
                   <tr key={st._id}>
@@ -435,23 +436,23 @@ export default function WeeklyReport() {
                     {weekDays.map(day => {
                       const c = matrix[st._id]?.[day.dateStr];
                       const hasVal = c && (c.pages !== null || c.attendance === 'absent');
-                      const num    = c?.pages !== null && c?.pages !== undefined ? Number(c.pages) : null;
-                      const ok     = hasVal && num >= st.dailyTarget && c.attendance !== 'absent';
-                      const zero   = hasVal && (num === 0 || c.attendance === 'absent');
+                      const num = c?.pages !== null && c?.pages !== undefined ? Number(c.pages) : null;
+                      const ok = hasVal && num >= st.dailyTarget && c.attendance !== 'absent';
+                      const zero = hasVal && (num === 0 || c.attendance === 'absent');
                       return (
                         <td key={day.dateStr} style={{ textAlign: 'center', padding: '0.6rem 0.5rem', position: 'relative' }}>
                           {hasVal ? (
                             <>
-                            <span style={{
-                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                              width: 34, height: 28, borderRadius: 'var(--radius-sm)',
-                              fontWeight: 700, fontSize: '0.85rem',
-                              background: c.attendance === 'absent' ? 'rgba(239,68,68,0.1)' : ok ? 'rgba(34,197,94,0.12)' : zero ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
-                              color: c.attendance === 'absent' ? 'var(--danger)' : ok ? 'var(--green-400)' : zero ? 'var(--danger)' : 'var(--gold-400)',
-                            }}>
-                              {c.attendance === 'absent' ? 'غ' : num}
-                            </span>
-                            {c.isLate && <span style={{ position: 'absolute', top: '2px', right: '4px', fontSize: '0.65rem', color: 'var(--gold-500)', fontWeight: 'bold' }}>ت</span>}
+                              <span style={{
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: 34, height: 28, borderRadius: 'var(--radius-sm)',
+                                fontWeight: 700, fontSize: '0.85rem',
+                                background: c.attendance === 'absent' ? 'rgba(239,68,68,0.1)' : ok ? 'rgba(34,197,94,0.12)' : zero ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
+                                color: c.attendance === 'absent' ? 'var(--danger)' : ok ? 'var(--green-400)' : zero ? 'var(--danger)' : 'var(--gold-400)',
+                              }}>
+                                {c.attendance === 'absent' ? 'غ' : num}
+                              </span>
+                              {c.isLate && <span style={{ position: 'absolute', top: '2px', right: '4px', fontSize: '0.65rem', color: 'var(--gold-500)', fontWeight: 'bold' }}>ت</span>}
                             </>
                           ) : (
                             <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</span>
@@ -470,8 +471,8 @@ export default function WeeklyReport() {
                 <td colSpan={3} style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--green-400)', fontSize: '0.85rem' }}>الإجمالي الكلي</td>
                 <td style={{ textAlign: 'center', padding: '0.75rem 0.5rem' }}><span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(34,197,94,0.15)', color: 'var(--green-400)', borderRadius: 'var(--radius-sm)', padding: '2px 10px', fontWeight: 800, fontSize: '0.85rem' }}>{dayRequired}</span></td>
                 {weekDays.map(day => {
-                  const tot  = dayTotal(day.dateStr);
-                  const pct  = dayRequired > 0 ? Math.round((tot / dayRequired) * 100) : 0;
+                  const tot = dayTotal(day.dateStr);
+                  const pct = dayRequired > 0 ? Math.round((tot / dayRequired) * 100) : 0;
                   const hasD = students.some(st => matrix[st._id]?.[day.dateStr] !== null && matrix[st._id]?.[day.dateStr] !== undefined);
                   const pctColor = pct >= 80 ? 'var(--green-400)' : pct >= 50 ? 'var(--gold-400)' : 'var(--danger)';
                   return (

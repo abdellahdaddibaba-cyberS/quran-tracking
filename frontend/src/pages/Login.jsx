@@ -72,20 +72,16 @@ export default function Login({ onLogin }) {
         }} />
 
         <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-          <div style={{
-            width: '70px',
-            height: '70px',
-            background: 'linear-gradient(135deg, var(--green-600), var(--green-400))',
-            borderRadius: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 1.5rem',
-            boxShadow: '0 10px 20px rgba(34, 197, 94, 0.3)',
-            transform: 'rotate(-5deg)'
-          }}>
-            <ShieldCheck size={36} color="white" />
-          </div>
+          <img 
+            src="/logo.png" 
+            alt="Logo" 
+            style={{ 
+              width: '80px', 
+              height: '80px', 
+              margin: '0 auto 1.5rem',
+              objectFit: 'contain'
+            }} 
+          />
           <h1 style={{ fontSize: '1.75rem', fontWeight: 900, color: 'white', marginBottom: '0.5rem' }}>
             نظام متابعة التحصيل
           </h1>

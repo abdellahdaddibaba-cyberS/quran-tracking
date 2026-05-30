@@ -9,12 +9,12 @@ const navLinks = [
   { label: 'الرئيسية',         path: '/',                  icon: Home, roles: ['admin', 'teacher', 'parent'] },
   { label: 'الحلقات',          path: '/halaqat',            icon: AlignJustify, roles: ['admin', 'teacher'] },
   { label: 'الطلبة',           path: '/students',           icon: Users, roles: ['admin', 'teacher'] },
-  { label: 'تحصيل الجوائز',    path: '/awards',             icon: Trophy, roles: ['admin', 'teacher'] },
-  { label: 'تسجيل الحضور',     path: '/attendance',         icon: UserCheck, roles: ['admin', 'teacher'] },
   { label: 'التحصيل اليومي', path: '/daily-input',        icon: BookOpen, roles: ['admin', 'teacher'] },
-  { label: 'ملخص الأسبوع',     path: '/weekly-report',      icon: TrendingUp, roles: ['admin', 'teacher', 'parent'] },
+  { label: 'تسجيل الحضور',     path: '/attendance',         icon: UserCheck, roles: ['admin', 'teacher'] },
   { label: 'المتخلفين عن التحصيل',    path: '/low-pages',          icon: TrendingDown, roles: ['admin', 'teacher'] },
   { label: 'جلسات فردية',      path: '/individual-sessions',icon: UserCheck, roles: ['admin', 'teacher'] },
+  { label: 'تحصيل الجوائز',    path: '/awards',             icon: Trophy, roles: ['admin', 'teacher'] },
+  { label: 'ملخص الأسبوع',     path: '/weekly-report',      icon: TrendingUp, roles: ['admin', 'teacher', 'parent'] },
   { label: 'سجلات الدخول',     path: '/login-logs',         icon: History, roles: ['admin'] },
   { label: 'المستخدمين وأولياء الأمور', path: '/users',      icon: UserCheck, roles: ['admin'] },
   { label: 'الاقتراح الذكي',   path: '/ai',                 icon: Brain, roles: ['admin', 'teacher'] },
@@ -39,14 +39,16 @@ export default function Navbar({ user, onLogout }) {
       <div className="sidebar-logo">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <div style={{
-            width: 42, height: 42,
-            background: 'var(--logo-gradient)',
-            borderRadius: 8,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '1.2rem',
+            backgroundColor: '#ffffff',
+            padding: '4px',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
             flexShrink: 0
           }}>
-            📖
+            <img src="/logo.png" alt="Logo" style={{ width: 42, height: 42, objectFit: 'contain' }} />
           </div>
           <div style={{ lineHeight: 1.3 }}>
             <h1 style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--green-400)' }}>مدرسة النور القرآنية</h1>

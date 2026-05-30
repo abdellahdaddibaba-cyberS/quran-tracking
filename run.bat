@@ -1,3 +1,3 @@
 @echo off
-echo Starting Quran Tracking System...
-npm run dev
+cd /d "C:\Users\Administrator\Desktop\متابعة التحصيل\backend"
+node sync_to_supabase.js

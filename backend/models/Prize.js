@@ -29,7 +29,10 @@ const Prize = sequelize.define('Prize', {
     defaultValue: 'star' // star, medal, trophy, crown
   }
 }, {
-  tableName: 'prizes'
+  tableName: 'prizes',
+  indexes: [
+    { fields: ['studentId'] }
+  ]
 });
 
 module.exports = Prize;

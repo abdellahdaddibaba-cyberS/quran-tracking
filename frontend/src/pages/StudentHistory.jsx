@@ -1,23 +1,19 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { BarChart2, Search, ChevronRight, ChevronLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { studentsAPI, trackingAPI } from '../services/api';
 
 export default function StudentHistory() {
-  const [students,   setStudents]   = useState([]);
-  const [selected,   setSelected]   = useState('');
-  const [records,    setRecords]    = useState([]);
-  const [loading,    setLoading]    = useState(false);
-  const [search,     setSearch]     = useState('');
-  const [page,       setPage]       = useState(1);
+  const [students, setStudents] = useState([]);
+  const [searchParams] = useSearchParams();
+  const [selected, setSelected] = useState(searchParams.get('studentId') || '');
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const LIMIT = 15;
-
-  useEffect(() => {
-    studentsAPI.getAll()
-      .then(r => setStudents(r.data.data))
-      .catch(() => toast.error('فشل تحميل الطلبة'));
-  }, []);
 
   const fetchHistory = async (studentId, p = 1) => {
     if (!studentId) return;
@@ -34,6 +30,17 @@ export default function StudentHistory() {
     }
   };
 
+  useEffect(() => {
+    studentsAPI.getAll()
+      .then(r => setStudents(r.data.data))
+      .catch(() => toast.error('فشل تحميل الطلبة'));
+      
+    const initialStudentId = searchParams.get('studentId');
+    if (initialStudentId) {
+      fetchHistory(initialStudentId, 1);
+    }
+  }, []);
+
   const handleSelect = (id) => {
     setSelected(id);
     setPage(1);
@@ -48,12 +55,12 @@ export default function StudentHistory() {
 
   // إحصائيات الطالب
   const stats = records.length > 0 ? {
-    totalDays:    records.length,
-    successDays:  records.filter(r => r.pagesMemorized >= r.pagesRequired && r.attendance !== 'absent').length,
+    totalDays: records.length,
+    successDays: records.filter(r => r.pagesMemorized >= r.pagesRequired && r.attendance !== 'absent').length,
     totalMemorized: records.reduce((sum, r) => sum + (r.attendance !== 'absent' ? r.pagesMemorized : 0), 0),
     avgMemorized: (records.reduce((sum, r) => sum + (r.attendance !== 'absent' ? r.pagesMemorized : 0), 0) / records.length).toFixed(1),
-    absences:     records.filter(r => r.attendance === 'absent').length,
-    lates:        records.filter(r => r.isLate).length
+    absences: records.filter(r => r.attendance === 'absent').length,
+    lates: records.filter(r => r.isLate).length
   } : null;
 
   return (
@@ -215,12 +222,12 @@ export default function StudentHistory() {
                       </thead>
                       <tbody>
                         {records.map(r => {
-                          const diff    = r.pagesMemorized - r.pagesRequired;
+                          const diff = r.pagesMemorized - r.pagesRequired;
                           const success = r.pagesMemorized >= r.pagesRequired && r.attendance !== 'absent';
                           return (
                             <tr key={r._id}>
                               <td style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                {new Date(r.date).toLocaleDateString('en-GB', {
+                                {new Date(r.date).toLocaleDateString('ar-DZ', {
                                   weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
                                 })}
                                 {r.isLate && <span style={{ marginRight: '6px', fontSize: '0.7rem', color: 'var(--gold-500)', fontWeight: 'bold' }}>(متأخر)</span>}

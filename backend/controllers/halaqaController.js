@@ -55,6 +55,16 @@ const deleteHalaqa = async (req, res) => {
     if (!halaqa) {
       return res.status(404).json({ success: false, message: 'الحلقة غير موجودة' });
     }
+    
+    // Check if there are any students in this Halaqa
+    const studentCount = await Student.count({ where: { halaqaId: req.params.id } });
+    if (studentCount > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'لا يمكن حذف الحلقة لأنها تحتوي على طلاب. يرجى نقل الطلاب أو حذفهم أولاً.' 
+      });
+    }
+    
     await halaqa.destroy();
     res.json({ success: true, message: 'تم حذف الحلقة بنجاح' });
   } catch (error) {

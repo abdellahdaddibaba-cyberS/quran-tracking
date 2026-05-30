@@ -1,4 +1,6 @@
 const User = require('../models/User');
+const Student = require('../models/Student');
+const { sequelize } = require('../config/db');
 
 /**
  * جلب جميع المستخدمين (مع إمكانية الفلترة حسب الدور)
@@ -57,14 +59,25 @@ const updateUser = async (req, res) => {
  * حذف مستخدم
  */
 const deleteUser = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const user = await User.findByPk(req.params.id);
+    const user = await User.findByPk(req.params.id, { transaction });
     if (!user) {
+      await transaction.rollback();
       return res.status(404).json({ success: false, message: 'المستخدم غير موجود' });
     }
-    await user.destroy();
+    
+    // Set parentId to null for all students associated with this parent
+    await Student.update(
+      { parentId: null },
+      { where: { parentId: req.params.id }, transaction }
+    );
+    
+    await user.destroy({ transaction });
+    await transaction.commit();
     res.json({ success: true, message: 'تم حذف المستخدم بنجاح' });
   } catch (error) {
+    await transaction.rollback();
     res.status(500).json({ success: false, message: error.message });
   }
 };

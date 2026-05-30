@@ -46,10 +46,35 @@ app.use(errorHandler);
 
 // ─── تشغيل الخادم ─────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
+const os = require('os');
+
+function getLocalIpAddress() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        if (name.toLowerCase().includes('wi-fi') || name.toLowerCase().includes('wireless') || name.toLowerCase().includes('ethernet') || name.toLowerCase().includes('wlan')) {
+          return iface.address;
+        }
+      }
+    }
+  }
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return 'localhost';
+}
+
+const networkIp = getLocalIpAddress();
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 الخادم يعمل على جميع الشبكات على المنفذ ${PORT}`);
   console.log(`🔗 محلياً: http://localhost:${PORT}`);
-  console.log(`🔗 للشبكة: http://10.75.163.188:${PORT}`);
+  console.log(`🔗 للشبكة: http://${networkIp}:${PORT}`);
 });
 
 // ✅ System launched and migrated to PostgreSQL

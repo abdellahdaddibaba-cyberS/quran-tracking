@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { History, Shield, AlertTriangle, CheckCircle, Search, Calendar, Monitor, Globe } from 'lucide-react';
-import axios from 'axios';
 import toast from 'react-hot-toast';
-
-const API_URL = 'http://localhost:5000/api/auth/logs';
+import { authAPI } from '../services/api';
 
 export default function LoginReport() {
   const [logs, setLogs] = useState([]);
@@ -17,7 +15,7 @@ export default function LoginReport() {
   const fetchLogs = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(API_URL);
+      const res = await authAPI.getLogs();
       if (res.data.success) {
         setLogs(res.data.data);
       }
@@ -98,7 +96,7 @@ export default function LoginReport() {
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Calendar size={14} color="var(--text-muted)" />
-                        {new Date(log.loginTime).toLocaleString('ar-EG')}
+                        {new Date(log.loginTime).toLocaleString('ar-DZ')}
                       </div>
                     </td>
                     <td style={{ fontWeight: 700 }}>{log.username}</td>

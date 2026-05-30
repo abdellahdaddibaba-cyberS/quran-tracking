@@ -14,16 +14,16 @@ export default function Home({ user }) {
     const fetchData = async () => {
       try {
         const d = new Date();
-        let todayStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-        
+        let todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
         const [hRes, sRes, tRes] = await Promise.all([
           halaqatAPI.getAll(),
           studentsAPI.getAll(),
           trackingAPI.getAllRange({ startDate: todayStr, endDate: todayStr })
         ]);
-        
+
         setHalaqat(hRes.data.data);
-        
+
         const records = tRes.data.data || [];
         const completed = new Set();
         records.forEach(r => {
@@ -87,7 +87,7 @@ export default function Home({ user }) {
         </div>
 
         <h3 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>قائمة الأبناء المسجلين</h3>
-        
+
         {myStudents.length === 0 ? (
           <div className="card empty-state">
             <Users size={48} />
@@ -98,9 +98,9 @@ export default function Home({ user }) {
             {myStudents.map(s => (
               <div key={s._id} className="card" style={{ padding: '1.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-                  <div style={{ 
-                    width: 50, height: 50, borderRadius: '50%', background: 'var(--green-600)', 
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 900, fontSize: '1.2rem' 
+                  <div style={{
+                    width: 50, height: 50, borderRadius: '50%', background: 'var(--green-600)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 900, fontSize: '1.2rem'
                   }}>
                     {s.name[0]}
                   </div>
@@ -109,7 +109,7 @@ export default function Home({ user }) {
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{s.halaqa?.name || 'بدون حلقة'}</div>
                   </div>
                 </div>
-                
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
                     <span style={{ color: 'var(--text-muted)' }}>المستوى:</span>
@@ -209,10 +209,10 @@ export default function Home({ user }) {
         </h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
           {[
-            { label: 'إدخال يومي',    path: '/daily-input', icon: '📝', desc: 'تسجيل أداء الطلبة اليوم',   color: '#22c55e' },
-            { label: 'إضافة طالب',    path: '/students',    icon: '👤', desc: 'إضافة طالب جديد للحلقة',   color: '#f59e0b' },
-            { label: 'الاقتراح الذكي',path: '/ai',          icon: '🤖', desc: 'اقتراح تعديل القسط اليومي', color: '#3b82f6' },
-            { label: 'سجل الطالب',    path: '/history',     icon: '📊', desc: 'عرض سجل أداء أي طالب',     color: '#a855f7' },
+            { label: 'إدخال يومي', path: '/daily-input', icon: '📝', desc: 'تسجيل أداء الطلبة اليوم', color: '#22c55e' },
+            { label: 'إضافة طالب', path: '/students', icon: '👤', desc: 'إضافة طالب جديد للحلقة', color: '#f59e0b' },
+            { label: 'الاقتراح الذكي', path: '/ai', icon: '🤖', desc: 'اقتراح تعديل القسط اليومي', color: '#3b82f6' },
+            { label: 'سجل الطالب', path: '/history', icon: '📊', desc: 'عرض سجل أداء أي طالب', color: '#a855f7' },
           ].map(item => (
             <Link key={item.path} to={item.path} style={{ textDecoration: 'none' }}>
               <div className="card" style={{ cursor: 'pointer', transition: 'var(--transition)' }}>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Trophy, Search, Star, Calendar, Sparkles, Award, CheckCircle2, Loader2, History } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { reportsAPI } from '../services/api';
@@ -10,6 +11,7 @@ export default function StudentAwards() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null); // studentId of currently processing prize
   const [search, setSearch] = useState('');
+  const navigate = useNavigate();
 
   const fetchAwards = async () => {
     setLoading(true);
@@ -28,7 +30,7 @@ export default function StudentAwards() {
       console.error('Failed to load recent prizes:', err);
       // Don't show a toast for this, as it's secondary
     }
-    
+
     setLoading(false);
   };
 
@@ -53,13 +55,13 @@ export default function StudentAwards() {
     }
   };
 
-  const filtered = data.filter(s => 
-    s.name.toLowerCase().includes(search.toLowerCase()) || 
+  const filtered = data.filter(s =>
+    s.name.toLowerCase().includes(search.toLowerCase()) ||
     s.halaqa.toLowerCase().includes(search.toLowerCase())
   );
 
-  const filteredPotential = potential.filter(s => 
-    s.name.toLowerCase().includes(search.toLowerCase()) || 
+  const filteredPotential = potential.filter(s =>
+    s.name.toLowerCase().includes(search.toLowerCase()) ||
     s.halaqa.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -74,8 +76,8 @@ export default function StudentAwards() {
         </div>
       </div>
 
-      <div className="alert" style={{ 
-        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(251, 191, 36, 0.05))', 
+      <div className="alert" style={{
+        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(251, 191, 36, 0.05))',
         border: '1px solid rgba(245, 158, 11, 0.2)',
         color: 'var(--gold-400)',
         marginBottom: '1.5rem',
@@ -91,11 +93,11 @@ export default function StudentAwards() {
 
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <div style={{ position: 'relative' }}>
-          <Search size={18} style={{ 
-            position: 'absolute', top: '50%', right: '1rem', 
-            transform: 'translateY(-50%)', color: 'var(--text-muted)' 
+          <Search size={18} style={{
+            position: 'absolute', top: '50%', right: '1rem',
+            transform: 'translateY(-50%)', color: 'var(--text-muted)'
           }} />
-          <input 
+          <input
             className="form-control"
             placeholder="بحث باسم الطالب أو الحلقة..."
             value={search}
@@ -127,16 +129,66 @@ export default function StudentAwards() {
               </div>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
-              {filtered.map(s => (
-                <AwardCard 
-                  key={s.id} 
-                  student={s} 
-                  type="winner" 
-                  onGive={() => handleGivePrize(s.id)}
-                  isProcessing={actionLoading === s.id}
-                />
-              ))}
+            <div className="card" style={{ marginBottom: '3rem' }}>
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>الطالب</th>
+                      <th>الحلقة</th>
+                      <th>سلسلة الإنجاز</th>
+                      <th style={{ textAlign: 'center' }}>الإجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map(s => (
+                      <tr key={s.id}>
+                        <td style={{ fontWeight: 700 }}>{s.name}</td>
+                        <td>{s.halaqa}</td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.4rem' }}>
+                            {s.lastRecords.map((r, idx) => (
+                              <div key={idx} style={{
+                                background: 'rgba(34, 197, 94, 0.08)',
+                                border: '1px solid rgba(34, 197, 94, 0.15)',
+                                borderRadius: '8px',
+                                padding: '0.2rem 0.5rem',
+                                textAlign: 'center',
+                                display: 'inline-block'
+                              }}>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                                  {new Date(r.date).toLocaleDateString('ar-DZ', { weekday: 'short' })}
+                                </span>
+                                <span style={{ fontWeight: 700, color: 'var(--green-400)', fontSize: '0.75rem' }}>
+                                  {r.pages} ص
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <button
+                              className="btn btn-gold btn-sm"
+                              onClick={() => handleGivePrize(s.id)}
+                              disabled={actionLoading === s.id}
+                            >
+                              {actionLoading === s.id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                              تسليم الجائزة
+                            </button>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => navigate(`/history?studentId=${s.id}`)}
+                            >
+                              عرض السجل
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -155,10 +207,58 @@ export default function StudentAwards() {
               </div>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
-              {filteredPotential.map(s => (
-                <AwardCard key={s.id} student={s} type="potential" />
-              ))}
+            <div className="card">
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>الطالب</th>
+                      <th>الحلقة</th>
+                      <th>سلسلة الإنجاز (يومين)</th>
+                      <th style={{ textAlign: 'center' }}>الإجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPotential.map(s => (
+                      <tr key={s.id}>
+                        <td style={{ fontWeight: 700 }}>{s.name}</td>
+                        <td>{s.halaqa}</td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.4rem' }}>
+                            {s.lastRecords.map((r, idx) => (
+                              <div key={idx} style={{
+                                background: 'rgba(59, 130, 246, 0.08)',
+                                border: '1px solid rgba(59, 130, 246, 0.15)',
+                                borderRadius: '8px',
+                                padding: '0.2rem 0.5rem',
+                                textAlign: 'center',
+                                display: 'inline-block'
+                              }}>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                                  {new Date(r.date).toLocaleDateString('ar-DZ', { weekday: 'short' })}
+                                </span>
+                                <span style={{ fontWeight: 700, color: 'var(--info)', fontSize: '0.75rem' }}>
+                                  {r.pages} ص
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => navigate(`/history?studentId=${s.id}`)}
+                            >
+                              عرض السجل
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
           {/* ─── آخر الجوائز المسلمة ─── */}
@@ -193,7 +293,7 @@ export default function StudentAwards() {
                           </div>
                         </td>
                         <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                          {new Date(p.date).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })}
+                          {new Date(p.date).toLocaleDateString('ar-DZ', { year: 'numeric', month: 'long', day: 'numeric' })}
                         </td>
                       </tr>
                     ))}
@@ -204,119 +304,6 @@ export default function StudentAwards() {
           </div>
         </>
       )}
-    </div>
-  );
-}
-
-function AwardCard({ student, type, onGive, isProcessing }) {
-  const isWinner = type === 'winner';
-  const accentColor = isWinner ? 'var(--gold-500)' : 'var(--info)';
-  const bgColor = isWinner ? 'rgba(245, 158, 11, 0.02)' : 'rgba(59, 130, 246, 0.02)';
-
-  return (
-    <div className="card" style={{ 
-      borderTop: `4px solid ${accentColor}`, 
-      position: 'relative',
-      overflow: 'hidden',
-      background: `linear-gradient(to bottom, var(--bg-card), ${bgColor})`
-    }}>
-      <div style={{ position: 'absolute', top: '-10px', left: '-10px', opacity: 0.1 }}>
-        {isWinner ? <Trophy size={80} /> : <Award size={80} />}
-      </div>
-      
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-        <div>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>{student.name}</h3>
-          <span className="badge" style={{ 
-            marginTop: '0.5rem',
-            background: isWinner ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-            color: accentColor
-          }}>
-            {student.halaqa}
-          </span>
-        </div>
-        <div style={{ 
-          background: isWinner ? 'rgba(245, 158, 11, 0.2)' : 'rgba(59, 130, 246, 0.2)', 
-          color: accentColor, 
-          width: '36px', height: '36px', 
-          borderRadius: '50%', 
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: `0 0 10px ${isWinner ? 'rgba(245, 158, 11, 0.2)' : 'rgba(59, 130, 246, 0.2)'}`
-        }}>
-          {isWinner ? <Star size={18} fill="currentColor" /> : <Award size={18} />}
-        </div>
-      </div>
-
-      <div style={{ marginBottom: '1rem' }}>
-        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <Calendar size={14} />
-          سلسلة الإنجاز ({student.streakCount} أيام):
-        </div>
-        <div style={{ display: 'flex', gap: '0.4rem' }}>
-          {student.lastRecords.map((r, idx) => (
-            <div key={idx} style={{ 
-              flex: 1,
-              background: 'rgba(34, 197, 94, 0.08)', 
-              border: '1px solid rgba(34, 197, 94, 0.15)',
-              borderRadius: '8px',
-              padding: '0.4rem',
-              textAlign: 'center'
-            }}>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '2px' }}>
-                {new Date(r.date).toLocaleDateString('ar-EG', { weekday: 'short' })}
-              </div>
-              <div style={{ fontWeight: 700, color: 'var(--green-400)', fontSize: '0.8rem' }}>
-                {r.pages} ص
-              </div>
-            </div>
-          ))}
-          {!isWinner && (
-            <div style={{ 
-              flex: 1,
-              background: 'rgba(255, 255, 255, 0.03)', 
-              border: '1px dashed var(--border)',
-              borderRadius: '8px',
-              padding: '0.4rem',
-              textAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '0.65rem',
-              color: 'var(--text-muted)'
-            }}>
-              اليوم 3؟
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div style={{ 
-        borderTop: '1px solid var(--border)', 
-        paddingTop: '1rem', 
-        display: 'flex', 
-        flexDirection: 'column',
-        gap: '0.5rem'
-      }}>
-        {isWinner ? (
-          <button 
-            className="btn btn-gold btn-sm" 
-            style={{ width: '100%', justifyContent: 'center' }}
-            onClick={onGive}
-            disabled={isProcessing}
-          >
-            {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-            تسليم الجائزة الآن
-          </button>
-        ) : null}
-        
-        <button 
-          className="btn btn-secondary btn-sm" 
-          style={{ width: '100%', justifyContent: 'center' }}
-          onClick={() => window.location.href = `/history?studentId=${student.id}`}
-        >
-          عرض السجل التفصيلي
-        </button>
-      </div>
     </div>
   );
 }

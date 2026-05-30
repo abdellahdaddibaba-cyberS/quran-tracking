@@ -8,8 +8,8 @@ import ConfirmModal from '../components/ConfirmModal';
 // ─── Modal للإضافة / التعديل ─────────────────────────────────────
 function HalaqaModal({ halaqa, onClose, onSave }) {
   const [form, setForm] = useState({
-    name:        halaqa?.name        || '',
-    supervisor:  halaqa?.supervisor  || '',
+    name: halaqa?.name || '',
+    supervisor: halaqa?.supervisor || '',
     description: halaqa?.description || '',
   });
   const [saving, setSaving] = useState(false);
@@ -90,10 +90,10 @@ function HalaqaModal({ halaqa, onClose, onSave }) {
 
 // ─── الصفحة الرئيسية ─────────────────────────────────────────────
 export default function HalaqaManagement() {
-  const [halaqat, setHalaqat]   = useState([]);
-  const [loading, setLoading]   = useState(true);
+  const [halaqat, setHalaqat] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [editItem, setEditItem]  = useState(null);
+  const [editItem, setEditItem] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [deleteName, setDeleteName] = useState('');
 
@@ -118,7 +118,7 @@ export default function HalaqaManagement() {
 
   const handleConfirmDelete = async () => {
     if (!deleteId) return;
-    
+
     toast.promise(
       halaqatAPI.delete(deleteId),
       {
@@ -132,9 +132,9 @@ export default function HalaqaManagement() {
     );
   };
 
-  const openAdd  = ()      => { setEditItem(null);  setShowModal(true); };
-  const openEdit = (item)  => { setEditItem(item);  setShowModal(true); };
-  const onSave   = ()      => { setShowModal(false); fetchHalaqat(); };
+  const openAdd = () => { setEditItem(null); setShowModal(true); };
+  const openEdit = (item) => { setEditItem(item); setShowModal(true); };
+  const onSave = () => { setShowModal(false); fetchHalaqat(); };
 
   return (
     <div>
@@ -187,11 +187,11 @@ export default function HalaqaManagement() {
                     </div>
                   )}
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.75rem', marginBottom: '1rem' }}>
-                    أُنشئت: {new Date(h.createdAt).toLocaleDateString('en-GB')}
+                    أُنشئت: {new Date(h.createdAt).toLocaleDateString('ar-DZ')}
                   </div>
-                  <Link 
-                    to={`/students?halaqaId=${h._id}`} 
-                    className="btn btn-secondary btn-sm" 
+                  <Link
+                    to={`/students?halaqaId=${h._id}`}
+                    className="btn btn-secondary btn-sm"
                     style={{ width: '100%', justifyContent: 'center' }}
                   >
                     <Users size={14} /> عرض الطلبة
@@ -219,7 +219,7 @@ export default function HalaqaManagement() {
         />
       )}
 
-      <ConfirmModal 
+      <ConfirmModal
         isOpen={!!deleteId}
         title="تأكيد حذف الحلقة"
         message={`هل أنت متأكد من حذف حلقة "${deleteName}"؟ سيؤدي هذا إلى حذف الحلقة بشكل نهائي.`}

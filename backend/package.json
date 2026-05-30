@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "sync": "node sync_to_supabase.js",
+    "sync:daemon": "node sync_to_supabase.js --daemon"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

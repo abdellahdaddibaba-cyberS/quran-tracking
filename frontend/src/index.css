@@ -501,7 +501,8 @@ tbody td {
   align-items: center;
   gap: 4px;
   padding: 3px 10px;
-  border-radius: 999px;
+  margin-left: 10px;
+  border-radius: 600px;
   font-size: 0.75rem;
   font-weight: 600;
 }

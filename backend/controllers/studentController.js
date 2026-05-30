@@ -1,5 +1,8 @@
 const Student = require('../models/Student');
 const Halaqa = require('../models/Halaqa');
+const DailyTracking = require('../models/DailyTracking');
+const Prize = require('../models/Prize');
+const { sequelize } = require('../config/db');
 
 // ─── جلب الطلبة (كل الطلبة أو حسب الحلقة) ───────────────────────
 const getStudents = async (req, res) => {
@@ -104,14 +107,33 @@ const updateStudent = async (req, res) => {
 
 // ─── حذف طالب ─────────────────────────────────────────────────────
 const deleteStudent = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const student = await Student.findByPk(req.params.id);
+    const student = await Student.findByPk(req.params.id, { transaction });
     if (!student) {
+      await transaction.rollback();
       return res.status(404).json({ success: false, message: 'الطالب غير موجود' });
     }
-    await student.destroy();
+    
+    // Delete dependent daily trackings
+    await DailyTracking.destroy({
+      where: { studentId: req.params.id },
+      transaction
+    });
+    
+    // Delete dependent prizes
+    await Prize.destroy({
+      where: { studentId: req.params.id },
+      transaction
+    });
+    
+    // Delete the student
+    await student.destroy({ transaction });
+    
+    await transaction.commit();
     res.json({ success: true, message: 'تم حذف الطالب بنجاح' });
   } catch (error) {
+    await transaction.rollback();
     res.status(500).json({ success: false, message: error.message });
   }
 };

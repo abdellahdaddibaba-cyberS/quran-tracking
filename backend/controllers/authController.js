@@ -82,6 +82,42 @@ const getMe = async (req, res) => {
 };
 
 /**
+ * تحديث بيانات المستخدم (Profile)
+ */
+const updateProfile = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'المستخدم غير موجود' });
+    }
+
+    if (req.body.username) {
+      user.username = req.body.username;
+    }
+    if (req.body.password) {
+      if (!req.body.oldPassword) {
+        return res.status(400).json({ success: false, message: 'يرجى إدخال كلمة المرور القديمة' });
+      }
+      const isMatch = await user.comparePassword(req.body.oldPassword);
+      if (!isMatch) {
+        return res.status(401).json({ success: false, message: 'كلمة المرور القديمة غير صحيحة' });
+      }
+      user.password = req.body.password;
+    }
+    if (req.body.fullName) {
+      user.fullName = req.body.fullName;
+    }
+
+    await user.save();
+    
+    const { password, ...userWithoutPassword } = user.toJSON();
+    res.json({ success: true, data: userWithoutPassword });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
  * جلب سجلات تسجيل الدخول (للأدمن فقط)
  */
 const getLoginLogs = async (req, res) => {
@@ -96,4 +132,4 @@ const getLoginLogs = async (req, res) => {
   }
 };
 
-module.exports = { login, getMe, getLoginLogs };
+module.exports = { login, getMe, getLoginLogs, updateProfile };

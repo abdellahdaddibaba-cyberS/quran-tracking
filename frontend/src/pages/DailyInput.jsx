@@ -10,21 +10,21 @@ function getWeekDays(dateInput) {
   const [y, m, d] = dateInput.split('-');
   const date = new Date(y, m - 1, d);
   const day = date.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
-  
-  // إيجاد يوم السبت السابق
-  const diffToSat = day === 6 ? 0 : day + 1;
-  const saturday = new Date(date);
-  saturday.setDate(date.getDate() - diffToSat);
+
+  // إيجاد يوم الأحد السابق أو الحالي
+  const diffToSun = day;
+  const sunday = new Date(date);
+  sunday.setDate(date.getDate() - diffToSun);
 
   const days = [];
   const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-  for (let i = 0; i < 6; i++) { // Sat to Thu (6 days)
-    const current = new Date(saturday);
-    current.setDate(saturday.getDate() + i);
+  for (let i = 0; i < 6; i++) { // Sun to Fri (6 days)
+    const current = new Date(sunday);
+    current.setDate(sunday.getDate() + i);
     days.push({
-      dateStr: `${current.getFullYear()}-${String(current.getMonth()+1).padStart(2,'0')}-${String(current.getDate()).padStart(2,'0')}`,
+      dateStr: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`,
       label: dayNames[current.getDay()],
-      shortDate: current.toLocaleDateString('en-GB', { month: 'numeric', day: 'numeric' })
+      shortDate: current.toLocaleDateString('ar-DZ', { month: 'numeric', day: 'numeric' })
     });
   }
   return days;
@@ -32,20 +32,21 @@ function getWeekDays(dateInput) {
 
 export default function DailyInput() {
   const [searchParams] = useSearchParams();
-  const initialHalaqa  = searchParams.get('halaqaId') || '';
+  const initialHalaqa = searchParams.get('halaqaId') || '';
 
-  const [halaqat,      setHalaqat]      = useState([]);
+  const [halaqat, setHalaqat] = useState([]);
   const [selectedHalaqa, setSelectedHalaqa] = useState(initialHalaqa);
-  
+
   // Date state
   const [baseDate, setBaseDate] = useState(() => {
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return today < '2026-06-14' ? '2026-06-14' : today;
   });
   const weekDays = useMemo(() => getWeekDays(baseDate), [baseDate]);
 
   const weekName = useMemo(() => {
-    const start = new Date(2026, 4, 2); // 2 May 2026 (Saturday)
+    const start = new Date(2026, 5, 14); // 14 June 2026 (Sunday)
     const [y, m, d] = baseDate.split('-');
     const current = new Date(y, m - 1, d);
     const diffDays = Math.floor((current - start) / (1000 * 60 * 60 * 24));
@@ -54,12 +55,12 @@ export default function DailyInput() {
     return names[weekNum - 1] || String(weekNum);
   }, [baseDate]);
 
-  const [students,     setStudents]     = useState([]);
+  const [students, setStudents] = useState([]);
   // matrix: { studentId: { dateStr: pagesMemorized } }
-  const [matrix,       setMatrix]       = useState({});
-  const [loading,      setLoading]      = useState(false);
-  const [saving,       setSaving]       = useState(false);
-  const [saved,        setSaved]        = useState(false);
+  const [matrix, setMatrix] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [deleteDay, setDeleteDay] = useState(null); // { dateStr, label }
 
   // جلب الحلقات عند التحميل
@@ -71,12 +72,12 @@ export default function DailyInput() {
 
   // جلب طلبة الحلقة وسجلاتهم للأسبوع المختار
   useEffect(() => {
-    if (!selectedHalaqa) { 
-      setStudents([]); 
-      setMatrix({}); 
-      return; 
+    if (!selectedHalaqa) {
+      setStudents([]);
+      setMatrix({});
+      return;
     }
-    
+
     const fetchWeekData = async () => {
       setLoading(true);
       try {
@@ -98,25 +99,25 @@ export default function DailyInput() {
         fetchedStudents.forEach(st => {
           newMatrix[st._id] = {};
           weekDays.forEach(day => {
-            newMatrix[st._id][day.dateStr] = { 
-              pages: '', 
-              attendance: 'present', 
+            newMatrix[st._id][day.dateStr] = {
+              pages: '',
+              attendance: '',
               isLate: false,
-              isSurahCompleted: false 
+              isSurahCompleted: false
             };
           });
         });
 
         fetchedTracking.forEach(record => {
           const rd = new Date(record.date);
-          const rDate = `${rd.getFullYear()}-${String(rd.getMonth()+1).padStart(2,'0')}-${String(rd.getDate()).padStart(2,'0')}`;
+          const rDate = `${rd.getFullYear()}-${String(rd.getMonth() + 1).padStart(2, '0')}-${String(rd.getDate()).padStart(2, '0')}`;
           if (newMatrix[record.studentId?._id || record.studentId]) {
             newMatrix[record.studentId?._id || record.studentId][rDate] = {
-               pages: record.pagesMemorized,
-               attendance: record.attendance || 'present',
-               isLate: record.isLate || false,
-               isSurahCompleted: record.isSurahCompleted || false,
-               notes: record.notes || ''
+              pages: record.pagesMemorized,
+              attendance: record.attendance || '',
+              isLate: record.isLate || false,
+              isSurahCompleted: record.isSurahCompleted || false,
+              notes: record.notes || ''
             };
           }
         });
@@ -149,7 +150,7 @@ export default function DailyInput() {
   const handleKeyDown = (e, rowIdx, colIdx) => {
     let nextRow = rowIdx;
     let nextCol = colIdx;
-    
+
     if (e.key === 'Enter') {
       e.preventDefault();
       nextRow = rowIdx + 1;
@@ -175,13 +176,13 @@ export default function DailyInput() {
     const [y, m, d] = baseDate.split('-');
     const dateObj = new Date(y, m - 1, d);
     dateObj.setDate(dateObj.getDate() + offset * 7);
-    let newDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`;
-    
-    // منع العودة إلى ما قبل بدء الدورة (2 ماي 2026)
-    if (newDate < '2026-05-02') {
-      newDate = '2026-05-02';
+    let newDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+
+    // منع العودة إلى ما قبل بدء الدورة (14 جوان 2026)
+    if (newDate < '2026-06-14') {
+      newDate = '2026-06-14';
     }
-    
+
     setBaseDate(newDate);
   };
 
@@ -200,7 +201,7 @@ export default function DailyInput() {
         const newMatrix = JSON.parse(JSON.stringify(prev));
         Object.keys(newMatrix).forEach(studentId => {
           if (newMatrix[studentId]) {
-             newMatrix[studentId][dateStr] = { pages: '', attendance: 'present', isLate: false };
+            newMatrix[studentId][dateStr] = { pages: '', attendance: '', isLate: false };
           }
         });
         return newMatrix;
@@ -253,7 +254,7 @@ export default function DailyInput() {
     <div>
 
       {/* ─── نافذة تأكيد الحذف الجميلة ─────────────────────────── */}
-      <ConfirmModal 
+      <ConfirmModal
         isOpen={!!deleteDay}
         title="تأكيد مسح بيانات اليوم"
         message={deleteDay ? `هل أنت متأكد أنك تريد مسح جميع بيانات يوم ${deleteDay.label} (${deleteDay.dateStr}) لجميع طلبة هذه الحلقة؟ لا يمكن التراجع عن هذا الإجراء.` : ''}
@@ -281,21 +282,21 @@ export default function DailyInput() {
 
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-          <label className="form-label">أسبوع يبدأ من (السبت) — <span style={{color: 'var(--green-500)', fontWeight: 'bold'}}>الأسبوع {weekName}</span></label>
+          <label className="form-label">أسبوع يبدأ من (الأحد) — <span style={{ color: 'var(--green-500)', fontWeight: 'bold' }}>الأسبوع {weekName}</span></label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', maxWidth: '400px' }}>
             <button className="btn btn-secondary" onClick={() => shiftWeek(-1)} title="الأسبوع السابق">
               <ChevronRight size={18} />
             </button>
-              <input
-                type="date"
-                className="form-control"
-                min="2026-05-02"
-                value={baseDate}
-                onChange={e => {
-                  if (e.target.value >= '2026-05-02') setBaseDate(e.target.value);
-                }}
-                style={{ textAlign: 'center' }}
-              />
+            <input
+              type="date"
+              className="form-control"
+              min="2026-06-14"
+              value={baseDate}
+              onChange={e => {
+                if (e.target.value >= '2026-06-14') setBaseDate(e.target.value);
+              }}
+              style={{ textAlign: 'center' }}
+            />
             <button className="btn btn-secondary" onClick={() => shiftWeek(1)} title="الأسبوع القادم">
               <ChevronLeft size={18} />
             </button>
@@ -304,16 +305,16 @@ export default function DailyInput() {
 
         <div style={{ marginBottom: '0.5rem' }}>
           <label className="form-label">اختر الحلقة</label>
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
             gap: '1rem',
             marginTop: '0.5rem'
           }}>
             {halaqat.map(h => {
               const isSelected = selectedHalaqa === h._id;
               return (
-                <div 
+                <div
                   key={h._id}
                   onClick={() => setSelectedHalaqa(h._id)}
                   style={{
@@ -330,9 +331,9 @@ export default function DailyInput() {
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <h3 style={{ 
-                      margin: 0, 
-                      fontSize: '1rem', 
+                    <h3 style={{
+                      margin: 0,
+                      fontSize: '1rem',
                       fontWeight: 800,
                       color: isSelected ? 'var(--green-400)' : 'var(--text-primary)'
                     }}>
@@ -342,14 +343,14 @@ export default function DailyInput() {
                       {h.studentsCount || 0} طالب
                     </span>
                   </div>
-                  <span style={{ 
-                    fontSize: '0.75rem', 
+                  <span style={{
+                    fontSize: '0.75rem',
                     color: isSelected ? 'var(--green-500)' : 'var(--text-secondary)'
                   }}>
                     👤 {h.supervisor}
                   </span>
                   {isSelected && (
-                    <div style={{ 
+                    <div style={{
                       position: 'absolute', top: '0.5rem', left: '0.5rem',
                       color: 'var(--green-400)'
                     }}>
@@ -403,7 +404,7 @@ export default function DailyInput() {
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{day.label}</div>
                     <div style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
                       {day.shortDate}
-                      <button 
+                      <button
                         onClick={() => handleDeleteDay(day.dateStr, day.label)}
                         style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: 0, opacity: 0.8 }}
                         title="مسح بيانات هذا اليوم"
@@ -431,12 +432,12 @@ export default function DailyInput() {
                     </span>
                   </td>
                   {weekDays.map((day, colIdx) => {
-                    const cellData = matrix[st._id]?.[day.dateStr] || { pages: '', attendance: 'present', isLate: false };
+                    const cellData = matrix[st._id]?.[day.dateStr] || { pages: '', attendance: '', isLate: false };
                     const val = cellData.pages;
                     const entered = val !== '';
                     const success = entered && Number(val) >= st.dailyTarget;
                     const zero = (entered && Number(val) === 0) || cellData.attendance === 'absent';
-                    
+
                     return (
                       <td key={day.dateStr} style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '0.5rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
@@ -477,7 +478,7 @@ export default function DailyInput() {
                             <Star size={12} fill={cellData.isSurahCompleted ? 'currentColor' : 'none'} />
                             سورة
                           </button>
-                          
+
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <button
                               onClick={() => {
@@ -560,8 +561,8 @@ export default function DailyInput() {
                   }, 0);
                   const required = students.reduce((sum, st) => sum + (st.dailyTarget || 0), 0);
                   const hasData = students.some(st => {
-                     const c = matrix[st._id]?.[day.dateStr];
-                     return c && (c.pages !== '' || c.attendance === 'absent' || c.isLate);
+                    const c = matrix[st._id]?.[day.dateStr];
+                    return c && (c.pages !== '' || c.attendance === 'absent' || c.isLate);
                   });
                   const pct = required > 0 ? Math.round((total / required) * 100) : 0;
 

@@ -64,7 +64,11 @@ const Student = sequelize.define('Student', {
   }
 }, {
   timestamps: true,
-  tableName: 'students'
+  tableName: 'students',
+  indexes: [
+    { fields: ['halaqaId'] },
+    { fields: ['parentId'] }
+  ]
 });
 
 // Relationships

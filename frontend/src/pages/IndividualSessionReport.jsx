@@ -7,7 +7,7 @@ export default function IndividualSessionReport() {
   const [view, setView] = useState('record'); // 'record' or 'report'
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
-  
+
   // States for Record View
   const [halaqat, setHalaqat] = useState([]);
   const [selectedHalaqa, setSelectedHalaqa] = useState('');
@@ -38,7 +38,7 @@ export default function IndividualSessionReport() {
             trackingAPI.getByHalaqa(selectedHalaqa, { date: selectedDate })
           ]);
           setStudents(sRes.data.data);
-          
+
           const sMap = {};
           const nMap = {};
           tRes.data.data.forEach(rec => {
@@ -130,29 +130,29 @@ export default function IndividualSessionReport() {
     try {
       await reportsAPI.deleteSession({ studentId, date });
       toast.success('تم حذف الجلسة بنجاح');
-      
+
       // تحديث الواجهة
       if (selectedDate === date) {
         setSessionsMap(prev => ({ ...prev, [studentId]: false }));
         setNotesMap(prev => ({ ...prev, [studentId]: '' }));
       }
-      
+
       // تحديث السجل التاريخي
       const res = await reportsAPI.getStudentNotes(studentId);
       setStudentHistory(prev => ({ ...prev, [studentId]: res.data.data }));
-      
+
       setConfirmDelete(null);
     } catch (err) {
       toast.error('فشل حذف الجلسة');
     }
   };
 
-  const filteredStudents = students.filter(s => 
+  const filteredStudents = students.filter(s =>
     s.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const filteredReport = reportData.filter(s => 
-    s.name.toLowerCase().includes(search.toLowerCase()) || 
+  const filteredReport = reportData.filter(s =>
+    s.name.toLowerCase().includes(search.toLowerCase()) ||
     s.halaqa.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -165,7 +165,7 @@ export default function IndividualSessionReport() {
         </div>
         <div className="header-actions">
           <div style={{ display: 'flex', gap: '1rem' }}>
-            <button 
+            <button
               className={`btn ${view === 'record' ? 'btn-primary' : 'btn-outline'}`}
               onClick={() => { setView('record'); setSearch(''); }}
               style={{ borderRadius: 'var(--radius-md)' }}
@@ -173,7 +173,7 @@ export default function IndividualSessionReport() {
               <Plus size={16} />
               تسجيل جلسة
             </button>
-            <button 
+            <button
               className={`btn ${view === 'report' ? 'btn-primary' : 'btn-outline'}`}
               onClick={() => { setView('report'); setSearch(''); }}
               style={{ borderRadius: 'var(--radius-md)' }}
@@ -205,91 +205,91 @@ export default function IndividualSessionReport() {
       {view === 'record' ? (
         <>
           <div className="card" style={{ marginBottom: '1.5rem' }}>
-          <div style={{ marginBottom: '1.5rem' }}>
-            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-              <label className="form-label">التاريخ</label>
-              <input 
-                type="date" 
-                className="form-control" 
-                value={selectedDate} 
-                onChange={e => setSelectedDate(e.target.value)} 
-                style={{ maxWidth: '250px' }}
-              />
-            </div>
-
-            <label className="form-label">اختر الحلقة</label>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
-              gap: '1rem',
-              marginTop: '0.5rem',
-              marginBottom: '1.5rem'
-            }}>
-              {halaqat.map(h => {
-                const isSelected = selectedHalaqa === h._id;
-                return (
-                  <div 
-                    key={h._id}
-                    onClick={() => setSelectedHalaqa(h._id)}
-                    style={{
-                      cursor: 'pointer',
-                      padding: '1rem',
-                      borderRadius: 'var(--radius-md)',
-                      background: isSelected ? 'rgba(34, 197, 94, 0.15)' : 'var(--bg-card)',
-                      border: isSelected ? '2px solid var(--green-500)' : '1px solid var(--border)',
-                      transition: 'all 0.2s ease',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.25rem',
-                      position: 'relative'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <h3 style={{ 
-                        margin: 0, 
-                        fontSize: '1rem', 
-                        fontWeight: 800,
-                        color: isSelected ? 'var(--green-400)' : 'var(--text-primary)'
-                      }}>
-                        {h.name}
-                      </h3>
-                      <span className="badge badge-green" style={{ fontSize: '0.65rem', padding: '2px 8px' }}>
-                        {h.studentsCount || 0} طالب
-                      </span>
-                    </div>
-                    <span style={{ 
-                      fontSize: '0.75rem', 
-                      color: isSelected ? 'var(--green-500)' : 'var(--text-secondary)'
-                    }}>
-                      👤 {h.supervisor}
-                    </span>
-                    {isSelected && (
-                      <div style={{ 
-                        position: 'absolute', top: '0.5rem', left: '0.5rem',
-                        color: 'var(--green-400)'
-                      }}>
-                        <CheckCircle2 size={16} />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {selectedHalaqa && (
-              <div style={{ marginTop: '1.5rem', position: 'relative' }}>
-                <Search size={16} style={{ position: 'absolute', right: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  placeholder="بحث عن طالب..." 
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  style={{ paddingRight: '2.5rem' }}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label className="form-label">التاريخ</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={selectedDate}
+                  onChange={e => setSelectedDate(e.target.value)}
+                  style={{ maxWidth: '250px' }}
                 />
               </div>
-            )}
-          </div>
+
+              <label className="form-label">اختر الحلقة</label>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                gap: '1rem',
+                marginTop: '0.5rem',
+                marginBottom: '1.5rem'
+              }}>
+                {halaqat.map(h => {
+                  const isSelected = selectedHalaqa === h._id;
+                  return (
+                    <div
+                      key={h._id}
+                      onClick={() => setSelectedHalaqa(h._id)}
+                      style={{
+                        cursor: 'pointer',
+                        padding: '1rem',
+                        borderRadius: 'var(--radius-md)',
+                        background: isSelected ? 'rgba(34, 197, 94, 0.15)' : 'var(--bg-card)',
+                        border: isSelected ? '2px solid var(--green-500)' : '1px solid var(--border)',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.25rem',
+                        position: 'relative'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <h3 style={{
+                          margin: 0,
+                          fontSize: '1rem',
+                          fontWeight: 800,
+                          color: isSelected ? 'var(--green-400)' : 'var(--text-primary)'
+                        }}>
+                          {h.name}
+                        </h3>
+                        <span className="badge badge-green" style={{ fontSize: '0.65rem', padding: '2px 8px' }}>
+                          {h.studentsCount || 0} طالب
+                        </span>
+                      </div>
+                      <span style={{
+                        fontSize: '0.75rem',
+                        color: isSelected ? 'var(--green-500)' : 'var(--text-secondary)'
+                      }}>
+                        👤 {h.supervisor}
+                      </span>
+                      {isSelected && (
+                        <div style={{
+                          position: 'absolute', top: '0.5rem', left: '0.5rem',
+                          color: 'var(--green-400)'
+                        }}>
+                          <CheckCircle2 size={16} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {selectedHalaqa && (
+                <div style={{ marginTop: '1.5rem', position: 'relative' }}>
+                  <Search size={16} style={{ position: 'absolute', right: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="بحث عن طالب..."
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    style={{ paddingRight: '2.5rem' }}
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
           {!selectedHalaqa ? (
@@ -325,7 +325,7 @@ export default function IndividualSessionReport() {
 
                       return (
                         <>
-                          <tr key={s._id} style={{ 
+                          <tr key={s._id} style={{
                             background: isRecorded ? 'rgba(34, 197, 94, 0.03)' : '',
                             borderBottom: isExpanded ? 'none' : '1px solid var(--border)'
                           }}>
@@ -339,20 +339,20 @@ export default function IndividualSessionReport() {
                               )}
                             </td>
                             <td>
-                              <textarea 
+                              <textarea
                                 className="form-control"
                                 placeholder="أضف ملاحظة..."
                                 value={note}
                                 onChange={e => setNotesMap(prev => ({ ...prev, [s._id]: e.target.value }))}
                                 onBlur={e => saveNote(s._id, e.target.value)}
-                                style={{ 
-                                  fontSize: '0.8rem', minHeight: '60px', 
-                                  padding: '0.4rem', background: 'var(--bg-lighter)' 
+                                style={{
+                                  fontSize: '0.8rem', minHeight: '60px',
+                                  padding: '0.4rem', background: 'var(--bg-lighter)'
                                 }}
                               />
                             </td>
                             <td style={{ textAlign: 'center' }}>
-                              <button 
+                              <button
                                 className={`btn btn-sm ${isExpanded ? 'btn-primary' : 'btn-outline'}`}
                                 onClick={() => fetchHistory(s._id)}
                                 disabled={historyLoading && expandedStudent === null}
@@ -361,7 +361,7 @@ export default function IndividualSessionReport() {
                               </button>
                             </td>
                             <td style={{ textAlign: 'center' }}>
-                              <button 
+                              <button
                                 className={`btn btn-sm ${isRecorded ? 'btn-danger' : 'btn-primary'}`}
                                 onClick={() => toggleSession(s._id, isRecorded)}
                                 style={{ minWidth: 100 }}
@@ -370,14 +370,14 @@ export default function IndividualSessionReport() {
                               </button>
                             </td>
                           </tr>
-                          
+
                           {/* ─── توسيع عرض الملاحظات السابقة ─── */}
                           {isExpanded && (
                             <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
                               <td colSpan={6} style={{ padding: '0 1rem 1rem 1rem' }}>
-                                <div style={{ 
-                                  padding: '1rem', 
-                                  border: '1px solid var(--border)', 
+                                <div style={{
+                                  padding: '1rem',
+                                  border: '1px solid var(--border)',
                                   borderRadius: '0 0 8px 8px',
                                   background: 'var(--bg-main)',
                                   maxHeight: '250px',
@@ -394,7 +394,7 @@ export default function IndividualSessionReport() {
                                         <div key={hIdx} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', position: 'relative' }}>
                                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', paddingLeft: '2rem' }}>
                                             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                                              {new Date(h.date).toLocaleDateString('ar-EG', { dateStyle: 'medium' })}
+                                              {new Date(h.date).toLocaleDateString('ar-DZ', { dateStyle: 'medium' })}
                                             </span>
                                             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                               {h.individualSession && <span style={{ fontSize: '0.65rem', color: 'var(--green-400)' }}>جلسة فردية</span>}
@@ -408,9 +408,9 @@ export default function IndividualSessionReport() {
                                           <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: 1.5, paddingLeft: '2rem' }}>
                                             {h.notes || <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>بدون ملاحظة مكتوبة</span>}
                                           </p>
-                                          <button 
+                                          <button
                                             onClick={() => handleDeleteSession(s._id, h.date)}
-                                            style={{ 
+                                            style={{
                                               position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
                                               background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer',
                                               opacity: 0.6, padding: '4px'
@@ -441,7 +441,7 @@ export default function IndividualSessionReport() {
           <div className="card" style={{ marginBottom: '1.5rem' }}>
             <div style={{ position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', top: '50%', right: '1rem', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input 
+              <input
                 className="form-control"
                 placeholder="بحث باسم الطالب أو الحلقة..."
                 value={search}
@@ -478,15 +478,15 @@ export default function IndividualSessionReport() {
                         <div style={{ fontSize: '0.65rem', fontWeight: 700 }}>جلسات</div>
                       </div>
                     </div>
-                    
+
                     <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                       <Calendar size={14} />
-                      <span>آخر جلسة: {new Date(s.lastSessionDate).toLocaleDateString('ar-EG', { dateStyle: 'medium' })}</span>
+                      <span>آخر جلسة: {new Date(s.lastSessionDate).toLocaleDateString('ar-DZ', { dateStyle: 'medium' })}</span>
                     </div>
 
-                    <button 
-                      className="btn btn-outline" 
-                      style={{ width: '100%', justifyContent: 'center' }} 
+                    <button
+                      className="btn btn-outline"
+                      style={{ width: '100%', justifyContent: 'center' }}
                       onClick={() => fetchHistory(s.id)}
                     >
                       <History size={16} />
@@ -494,10 +494,10 @@ export default function IndividualSessionReport() {
                     </button>
 
                     {isExpanded && (
-                      <div style={{ 
-                        marginTop: '0.5rem', 
-                        padding: '1rem', 
-                        background: 'rgba(255,255,255,0.02)', 
+                      <div style={{
+                        marginTop: '0.5rem',
+                        padding: '1rem',
+                        background: 'rgba(255,255,255,0.02)',
                         borderRadius: 'var(--radius-md)',
                         maxHeight: '300px',
                         overflowY: 'auto'
@@ -505,7 +505,7 @@ export default function IndividualSessionReport() {
                         <h4 style={{ fontSize: '0.8rem', color: 'var(--gold-400)', marginBottom: '0.5rem' }}>الملاحظات التاريخية:</h4>
                         {history.map((h, i) => (
                           <div key={i} style={{ marginBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{new Date(h.date).toLocaleDateString('ar-EG')}</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{new Date(h.date).toLocaleDateString('ar-DZ')}</div>
                             <div style={{ fontSize: '0.85rem' }}>{h.notes || '—'}</div>
                           </div>
                         ))}

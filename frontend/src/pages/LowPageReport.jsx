@@ -114,7 +114,7 @@ export default function LowPageReport() {
                       <span className="badge badge-blue">{s.halaqa}</span>
                     </td>
                     <td style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                      {new Date(s.lastRecords[0].date).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' })}
+                      {new Date(s.lastRecords[0].date).toLocaleDateString('ar-DZ', { month: 'short', day: 'numeric' })}
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>

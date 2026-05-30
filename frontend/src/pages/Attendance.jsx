@@ -7,20 +7,20 @@ function getWeekDays(dateInput) {
   const [y, m, d] = dateInput.split('-');
   const date = new Date(y, m - 1, d);
   const day = date.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
-  
-  const diffToSat = day === 6 ? 0 : day + 1;
-  const saturday = new Date(date);
-  saturday.setDate(date.getDate() - diffToSat);
+
+  const diffToSun = day;
+  const sunday = new Date(date);
+  sunday.setDate(date.getDate() - diffToSun);
 
   const days = [];
   const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
   for (let i = 0; i < 6; i++) {
-    const current = new Date(saturday);
-    current.setDate(saturday.getDate() + i);
+    const current = new Date(sunday);
+    current.setDate(sunday.getDate() + i);
     days.push({
-      dateStr: `${current.getFullYear()}-${String(current.getMonth()+1).padStart(2,'0')}-${String(current.getDate()).padStart(2,'0')}`,
+      dateStr: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`,
       label: dayNames[current.getDay()],
-      shortDate: current.toLocaleDateString('en-GB', { month: 'numeric', day: 'numeric' })
+      shortDate: current.toLocaleDateString('ar-DZ', { month: 'numeric', day: 'numeric' })
     });
   }
   return days;
@@ -29,15 +29,16 @@ function getWeekDays(dateInput) {
 export default function Attendance() {
   const [halaqatMap, setHalaqatMap] = useState({});
   const [students, setStudents] = useState([]);
-  
+
   const [baseDate, setBaseDate] = useState(() => {
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return today < '2026-06-14' ? '2026-06-14' : today;
   });
   const weekDays = useMemo(() => getWeekDays(baseDate), [baseDate]);
 
   const weekName = useMemo(() => {
-    const start = new Date(2026, 4, 2);
+    const start = new Date(2026, 5, 14);
     const [y, m, d] = baseDate.split('-');
     const current = new Date(y, m - 1, d);
     const diffDays = Math.floor((current - start) / (1000 * 60 * 60 * 24));
@@ -83,24 +84,25 @@ export default function Attendance() {
 
         const fetchedTracking = tRes.data.data;
         const newMatrix = {};
-        
+
         fetchedStudents.forEach(st => {
           newMatrix[st._id] = {};
           weekDays.forEach(day => {
-            newMatrix[st._id][day.dateStr] = { status: 'present', pages: '' };
+            newMatrix[st._id][day.dateStr] = { status: '', pages: '' };
           });
         });
 
         fetchedTracking.forEach(record => {
           const sid = record.studentId?._id || record.studentId;
           const rd = new Date(record.date);
-          const rDate = `${rd.getFullYear()}-${String(rd.getMonth()+1).padStart(2,'0')}-${String(rd.getDate()).padStart(2,'0')}`;
-          
+          const rDate = `${rd.getFullYear()}-${String(rd.getMonth() + 1).padStart(2, '0')}-${String(rd.getDate()).padStart(2, '0')}`;
+
           if (newMatrix[sid]) {
-            let stStatus = 'present';
+            let stStatus = '';
             if (record.attendance === 'absent') stStatus = 'absent';
             else if (record.isLate) stStatus = 'late';
-            else if (record.attendance === 'excused') stStatus = 'excused'; // fallback if any exist
+            else if (record.attendance === 'present') stStatus = 'present';
+            else if (record.attendance === 'excused') stStatus = 'excused';
 
             newMatrix[sid][rDate] = {
               status: stStatus,
@@ -139,8 +141,8 @@ export default function Attendance() {
     const [y, m, d] = baseDate.split('-');
     const dateObj = new Date(y, m - 1, d);
     dateObj.setDate(dateObj.getDate() + offset * 7);
-    let newDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`;
-    if (newDate < '2026-05-02') newDate = '2026-05-02';
+    let newDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+    if (newDate < '2026-06-14') newDate = '2026-06-14';
     setBaseDate(newDate);
   };
 
@@ -188,7 +190,7 @@ export default function Attendance() {
     }
   };
 
-  const filteredStudents = students.filter(s => 
+  const filteredStudents = students.filter(s =>
     s.name.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -210,7 +212,7 @@ export default function Attendance() {
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <div className="form-row" style={{ alignItems: 'flex-end' }}>
           <div className="form-group" style={{ flex: 1 }}>
-            <label className="form-label">أسبوع يبدأ من (السبت) — <span style={{color: 'var(--green-500)', fontWeight: 'bold'}}>الأسبوع {weekName}</span></label>
+            <label className="form-label">أسبوع يبدأ من (الأحد) — <span style={{ color: 'var(--green-500)', fontWeight: 'bold' }}>الأسبوع {weekName}</span></label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <button className="btn btn-secondary" onClick={() => shiftWeek(-1)} title="الأسبوع السابق">
                 <ChevronRight size={18} />
@@ -218,10 +220,10 @@ export default function Attendance() {
               <input
                 type="date"
                 className="form-control"
-                min="2026-05-02"
+                min="2026-06-14"
                 value={baseDate}
                 onChange={e => {
-                  if (e.target.value >= '2026-05-02') setBaseDate(e.target.value);
+                  if (e.target.value >= '2026-06-14') setBaseDate(e.target.value);
                 }}
                 style={{ textAlign: 'center' }}
               />
@@ -230,15 +232,15 @@ export default function Attendance() {
               </button>
             </div>
           </div>
-          
+
           <div className="form-group" style={{ flex: 1 }}>
             <label className="form-label">بحث عن طالب</label>
             <div style={{ position: 'relative' }}>
               <Search size={16} style={{ position: 'absolute', right: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input 
-                type="text" 
-                className="form-control" 
-                placeholder="اكتب اسم الطالب..." 
+              <input
+                type="text"
+                className="form-control"
+                placeholder="اكتب اسم الطالب..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 style={{ paddingRight: '2.5rem' }}
@@ -287,7 +289,7 @@ export default function Attendance() {
             <tbody>
               {filteredStudents.map((st, idx) => {
                 const hName = st.halaqaId?.name || halaqatMap[st.halaqaId] || '—';
-                
+
                 let absencesCount = 0;
                 weekDays.forEach(day => {
                   if (matrix[st._id]?.[day.dateStr]?.status === 'absent') {
@@ -303,7 +305,7 @@ export default function Attendance() {
                     {weekDays.map(day => {
                       const cell = matrix[st._id]?.[day.dateStr] || { status: '' };
                       const stVal = cell.status;
-                      
+
                       let bg = 'transparent';
                       let borderColor = 'var(--border)';
                       if (stVal === 'present') { bg = 'rgba(34,197,94,0.1)'; borderColor = 'var(--green-500)'; }
@@ -330,6 +332,7 @@ export default function Attendance() {
                               textAlign: 'center'
                             }}
                           >
+                            <option value="">— اختر —</option>
                             <option value="present">✅ حاضر</option>
                             <option value="late">⏱️ متأخر</option>
                             <option value="absent">❌ غائب</option>

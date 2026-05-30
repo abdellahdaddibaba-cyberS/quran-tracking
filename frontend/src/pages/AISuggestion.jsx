@@ -39,12 +39,12 @@ const STATUS_CONFIG = {
 };
 
 export default function AISuggestion() {
-  const [students,    setStudents]    = useState([]);
-  const [selected,    setSelected]    = useState('');
-  const [suggestion,  setSuggestion]  = useState(null);
-  const [loading,     setLoading]     = useState(false);
-  const [fetchLoading,setFetchLoading]= useState(false);
-  const [search,      setSearch]      = useState('');
+  const [students, setStudents] = useState([]);
+  const [selected, setSelected] = useState('');
+  const [suggestion, setSuggestion] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [fetchLoading, setFetchLoading] = useState(false);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     setFetchLoading(true);
@@ -284,7 +284,7 @@ export default function AISuggestion() {
                         {suggestion.lastRecords.map((r, i) => (
                           <tr key={i}>
                             <td style={{ color: 'var(--text-secondary)' }}>
-                              {new Date(r.date).toLocaleDateString('en-GB', {
+                              {new Date(r.date).toLocaleDateString('ar-DZ', {
                                 weekday: 'short', month: 'short', day: 'numeric',
                               })}
                             </td>
