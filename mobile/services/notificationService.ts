@@ -3,7 +3,7 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authAPI } from './api';
+import { authAPI, wakeServer } from './api';
 
 const PUSH_TOKEN_KEY = 'expo_push_token';
 export const NOTIFICATION_CHANNEL_ID = 'default';
@@ -103,15 +103,25 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 }
 
 async function saveTokenToServer(token: string): Promise<boolean> {
-  for (let attempt = 0; attempt < 2; attempt++) {
+  await wakeServer();
+
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await authAPI.savePushToken(token);
-      return true;
-    } catch (error) {
-      console.error(`❌ فشل حفظ رمز الإشعارات (محاولة ${attempt + 1}):`, error);
-      if (attempt === 0) {
-        await new Promise((r) => setTimeout(r, 1500));
+      const res = await authAPI.savePushToken(token);
+      if (res?.data?.success) {
+        return true;
       }
+      console.error('❌ الخادم رفض حفظ رمز الإشعارات:', res?.data?.message);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
+      console.error(
+        `❌ فشل حفظ رمز الإشعارات (محاولة ${attempt + 1}):`,
+        err?.response?.data?.message || err?.message || error
+      );
+    }
+    if (attempt < 2) {
+      await new Promise((r) => setTimeout(r, 2000));
+      await wakeServer();
     }
   }
   return false;
@@ -128,14 +138,18 @@ export async function setupNotifications(): Promise<boolean> {
     const saved = await saveTokenToServer(token);
     if (saved) {
       console.log('✅ تم حفظ رمز الإشعارات في قاعدة البيانات');
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'تم تفعيل الإشعارات ✅',
-          body: 'سيصلك تنبيه عند تسجيل تحصيل ابنك في الحلقة',
-          sound: true,
-        },
-        trigger: null,
-      });
+      if (isPushSupported()) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'تم تفعيل الإشعارات ✅',
+            body: 'سيصلك تنبيه عند تسجيل تحصيل ابنك في الحلقة',
+            sound: true,
+          },
+          trigger: null,
+        });
+      }
+    } else {
+      console.error('❌ تم الحصول على الرمز لكن فشل حفظه على الخادم');
     }
     return saved;
   } catch (error) {

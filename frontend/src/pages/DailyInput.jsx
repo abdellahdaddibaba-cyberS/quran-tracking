@@ -241,7 +241,15 @@ export default function DailyInput() {
       }
 
       const res = await trackingAPI.bulkInsert(records);
-      toast.success(`تم حفظ ${records.length} سجل بنجاح ✅`);
+      const notif = res.data?.data?.notifications;
+      if (notif?.sent > 0) {
+        toast.success(`تم حفظ ${records.length} سجل وإرسال ${notif.sent} إشعار ✅`);
+      } else if (notif?.skipped?.length > 0) {
+        toast.success(`تم حفظ ${records.length} سجل ✅`, { duration: 4000 });
+        toast('لم يُرسل إشعار — ولي الأمر لم يسجّل الدخول من الهاتف بعد', { icon: '⚠️', duration: 6000 });
+      } else {
+        toast.success(`تم حفظ ${records.length} سجل بنجاح ✅`);
+      }
       setSaved(true);
     } catch (err) {
       toast.error(err.response?.data?.message || 'حدث خطأ أثناء الحفظ');

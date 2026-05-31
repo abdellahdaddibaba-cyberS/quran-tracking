@@ -2,6 +2,7 @@ const User = require('../models/User');
 const LoginLog = require('../models/LoginLog');
 const jwt = require('jsonwebtoken');
 const { Expo } = require('expo-server-sdk');
+const { syncPushTokenToSupabase } = require('../utils/syncPushTokens');
 
 /**
  * توليد توكن JWT
@@ -148,6 +149,8 @@ const savePushToken = async (req, res) => {
 
     user.pushToken = trimmed;
     await user.save({ fields: ['pushToken'] });
+
+    await syncPushTokenToSupabase(user._id, trimmed);
 
     console.log(`✅ pushToken saved for parent ${user.fullName} (${user._id})`);
     res.json({ success: true, message: 'تم حفظ رمز الإشعارات بنجاح' });

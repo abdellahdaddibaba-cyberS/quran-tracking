@@ -2,6 +2,79 @@ const { Op } = require('sequelize');
 const DailyTracking = require('../models/DailyTracking');
 const Student = require('../models/Student');
 const User = require('../models/User');
+const { sendPushNotification } = require('../utils/notification');
+const { syncPushTokensFromSupabase } = require('../utils/syncPushTokens');
+
+async function sendParentNotificationsForRecords(processedRecords) {
+  const summary = {
+    sent: 0,
+    skipped: [],
+    errors: [],
+  };
+
+  await syncPushTokensFromSupabase();
+
+  const studentIds = [...new Set(processedRecords.map((r) => Number(r.studentId)).filter(Boolean))];
+  if (studentIds.length === 0) return summary;
+
+  const students = await Student.findAll({
+    where: { _id: { [Op.in]: studentIds } },
+    include: [{
+      model: User,
+      as: 'parent',
+      attributes: ['_id', 'pushToken', 'fullName'],
+    }],
+  });
+
+  const studentMap = new Map(students.map((s) => [Number(s._id), s]));
+
+  for (const record of processedRecords) {
+    const student = studentMap.get(Number(record.studentId));
+    if (!student) {
+      summary.skipped.push({ studentId: record.studentId, reason: 'student_not_found' });
+      continue;
+    }
+    if (!student.parent) {
+      summary.skipped.push({ student: student.name, reason: 'no_parent_linked' });
+      continue;
+    }
+    if (!student.parent.pushToken) {
+      summary.skipped.push({
+        student: student.name,
+        parent: student.parent.fullName,
+        reason: 'no_push_token',
+      });
+      continue;
+    }
+
+    let title = `متابعة التحصيل اليومي لـ ${student.name}`;
+    let body = '';
+
+    if (record.attendance === 'absent') {
+      body = `تنبيه: تم تسجيل غياب ${student.name} اليوم عن الحلقة.`;
+    } else if (record.attendance === 'excused') {
+      body = `تنبيه: تم تسجيل غياب ${student.name} اليوم بعذر عن الحلقة.`;
+    } else if (record.isSurahCompleted) {
+      body = `🎉 تهانينا! لقد تم تسجيل حضور ${student.name} وحفظ ${record.pagesMemorized} صفحات، وأكمل حفظ سورة اليوم! 🌟`;
+    } else if (record.pagesMemorized > 0) {
+      body = `تم تسجيل حضور ${student.name} وحفظه لـ ${record.pagesMemorized} صفحات بنجاح اليوم.`;
+    } else {
+      body = `تم تسجيل حضور ${student.name} في الحلقة اليوم.`;
+    }
+
+    const result = await sendPushNotification([student.parent.pushToken], title, body, {
+      studentId: student._id,
+      type: 'daily_tracking',
+      date: record.date,
+    });
+
+    summary.sent += result.sent;
+    if (result.errors?.length) summary.errors.push(...result.errors);
+    if (result.receiptErrors?.length) summary.errors.push(...result.receiptErrors.map((e) => e.message));
+  }
+
+  return summary;
+}
 
 // ─── إدخال يومي جماعي (Bulk Insert / Upsert) ──────────────────────────────
 const bulkInsertTracking = async (req, res) => {
@@ -12,89 +85,42 @@ const bulkInsertTracking = async (req, res) => {
       return res.status(400).json({ success: false, message: 'يجب إرسال مصفوفة من السجلات' });
     }
 
-    // معالجة السجلات لضمان التنسيق الصحيح
-    const processedRecords = records.map((record) => {
-      // Sequelize DATEONLY سيقوم بمعالجة التاريخ بشكل صحيح
-      return { 
-        studentId: record.studentId,
-        date: record.date,
-        pagesRequired: record.pagesRequired,
-        pagesMemorized: record.pagesMemorized,
-        notes: record.notes || '',
-        attendance: record.attendance || 'present',
-        isLate: record.isLate || false,
-        individualSession: record.individualSession || false,
-        isSurahCompleted: record.isSurahCompleted || false
-      };
-    });
+    const processedRecords = records.map((record) => ({
+      studentId: record.studentId,
+      date: record.date,
+      pagesRequired: record.pagesRequired,
+      pagesMemorized: record.pagesMemorized,
+      notes: record.notes || '',
+      attendance: record.attendance || 'present',
+      isLate: record.isLate || false,
+      individualSession: record.individualSession || false,
+      isSurahCompleted: record.isSurahCompleted || false,
+    }));
 
-    // في Postgres، يمكننا استخدام updateOnDuplicate أو upsert في حلقة
-    // Sequelize bulkCreate مع updateOnDuplicate يتطلب تحديد الحقول التي سيتم تحديثها
     const result = await DailyTracking.bulkCreate(processedRecords, {
       updateOnDuplicate: ['pagesRequired', 'pagesMemorized', 'notes', 'attendance', 'isLate', 'individualSession', 'isSurahCompleted', 'updatedAt'],
     });
 
-    // إرسال الإشعارات لأولياء الأمور
+    let notifications = { sent: 0, skipped: [], errors: [] };
     try {
-      const { sendPushNotification } = require('../utils/notification');
-
-      const studentIds = [...new Set(processedRecords.map((r) => Number(r.studentId)).filter(Boolean))];
-      const students = await Student.findAll({
-        where: { _id: { [Op.in]: studentIds } },
-        include: [{
-          model: User,
-          as: 'parent',
-          attributes: ['_id', 'pushToken', 'fullName'],
-        }],
-      });
-
-      const studentMap = new Map(students.map((s) => [Number(s._id), s]));
-
-      for (const record of processedRecords) {
-        const student = studentMap.get(Number(record.studentId));
-        if (!student) {
-          console.warn(`⚠️ طالب غير موجود للإشعار: studentId=${record.studentId}`);
-          continue;
-        }
-        if (!student.parent) {
-          console.warn(`⚠️ الطالب "${student.name}" غير مربوط بولي أمر — لن يُرسل إشعار`);
-          continue;
-        }
-        if (!student.parent.pushToken) {
-          console.warn(`⚠️ ولي أمر "${student.parent.fullName || student.parent._id}" ليس لديه رمز إشعار`);
-          continue;
-        }
-
-        let title = `متابعة التحصيل اليومي لـ ${student.name}`;
-        let body = '';
-
-        if (record.attendance === 'absent') {
-          body = `تنبيه: تم تسجيل غياب ${student.name} اليوم عن الحلقة.`;
-        } else if (record.attendance === 'excused') {
-          body = `تنبيه: تم تسجيل غياب ${student.name} اليوم بعذر عن الحلقة.`;
-        } else if (record.isSurahCompleted) {
-          body = `🎉 تهانينا! لقد تم تسجيل حضور ${student.name} وحفظ ${record.pagesMemorized} صفحات، وأكمل حفظ سورة اليوم! 🌟`;
-        } else if (record.pagesMemorized > 0) {
-          body = `تم تسجيل حضور ${student.name} وحفظه لـ ${record.pagesMemorized} صفحات بنجاح اليوم.`;
-        } else {
-          body = `تم تسجيل حضور ${student.name} في الحلقة اليوم.`;
-        }
-
-        await sendPushNotification([student.parent.pushToken], title, body, {
-          studentId: student._id,
-          type: 'daily_tracking',
-          date: record.date,
-        });
+      notifications = await sendParentNotificationsForRecords(processedRecords);
+      if (notifications.sent > 0) {
+        console.log(`📲 تم إرسال ${notifications.sent} إشعار بعد حفظ التحصيل`);
+      }
+      if (notifications.skipped.length > 0) {
+        console.warn('⚠️ إشعارات لم تُرسل:', JSON.stringify(notifications.skipped));
       }
     } catch (notifError) {
       console.error('Error triggering parent push notifications:', notifError);
+      notifications.errors.push(notifError.message);
     }
 
     res.status(201).json({
       success: true,
       message: `تم حفظ ${records.length} سجل بنجاح`,
       data: {
-        count: result.length
+        count: result.length,
+        notifications,
       },
     });
   } catch (error) {
@@ -148,14 +174,13 @@ const getHalaqaTracking = async (req, res) => {
       where.date = date;
     }
 
-    // Optimization: Single query using INNER JOIN instead of two separate operations
     const records = await DailyTracking.findAll({
       where,
       include: [{
         model: Student,
         as: 'student',
         attributes: ['name', 'dailyTarget'],
-        where: { halaqaId, isActive: true } // Filter students directly in the join
+        where: { halaqaId, isActive: true }
       }],
       order: [['date', 'DESC']]
     });
@@ -176,11 +201,8 @@ const deleteHalaqaTrackingByDate = async (req, res) => {
       return res.status(400).json({ success: false, message: 'التاريخ مطلوب للمسح' });
     }
 
-    // Optimization: Use a subquery-like approach with literal if needed, 
-    // or keep as-is if student set is small, but let's optimize with a single destroy if possible.
-    // Sequelize destroy doesn't join well, but we can do a subquery in the 'where'
     const { sequelize } = require('../config/db');
-    
+
     const deletedCount = await DailyTracking.destroy({
       where: {
         date: date,
@@ -223,10 +245,10 @@ const getAllTrackingRange = async (req, res) => {
   }
 };
 
-module.exports = { 
-  bulkInsertTracking, 
-  getStudentTracking, 
-  getHalaqaTracking, 
+module.exports = {
+  bulkInsertTracking,
+  getStudentTracking,
+  getHalaqaTracking,
   deleteHalaqaTrackingByDate,
-  getAllTrackingRange 
+  getAllTrackingRange,
 };

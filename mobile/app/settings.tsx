@@ -1,5 +1,5 @@
 import { useAppTheme } from '../context/ThemeContext';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet, View, Text, TextInput, TouchableOpacity,
   SafeAreaView, ActivityIndicator, ScrollView
@@ -7,7 +7,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { authAPI, mobileAPI } from '../services/api';
-import { setupNotifications } from '../services/notificationService';
+import { setupNotifications, isPushSupported } from '../services/notificationService';
 import { ChevronLeft, Save, CheckCircle, AlertCircle, Bell } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -22,7 +22,18 @@ export default function SettingsScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [testingPush, setTestingPush] = useState(false);
+  const [pushRegistered, setPushRegistered] = useState<boolean | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | null; text: string }>({ type: null, text: '' });
+
+  useEffect(() => {
+    if (!isPushSupported()) {
+      setPushRegistered(false);
+      return;
+    }
+    authAPI.getMe().then((res) => {
+      setPushRegistered(!!res.data?.data?.pushToken);
+    }).catch(() => setPushRegistered(false));
+  }, []);
 
   const showStatus = (type: 'success' | 'error', text: string) => {
     setStatusMsg({ type, text });
@@ -35,9 +46,12 @@ export default function SettingsScreen() {
     try {
       const registered = await setupNotifications();
       if (!registered) {
-        showStatus('error', 'لم يتم تفعيل الإشعارات. اسمح بالإشعارات من إعدادات الهاتف.');
+        showStatus('error', 'فشل تسجيل الإشعارات على الخادم. تحقق من الإنترنت وحاول مجدداً.');
+        setPushRegistered(false);
         return;
       }
+
+      setPushRegistered(true);
 
       const res = await mobileAPI.testPush();
       if (res.data?.success) {
@@ -138,8 +152,14 @@ export default function SettingsScreen() {
         <View style={styles.notifCard}>
           <Text style={styles.notifTitle}>إشعارات التحصيل</Text>
           <Text style={styles.notifHint}>
-            اضغط الزر أدناه لاختبار الإشعارات قبل بناء التطبيق. يجب أن يصل إشعار تجريبي خلال ثوانٍ.
+            اضغط الزر أدناه لاختبار الإشعارات. يجب أن يصل إشعار تجريبي خلال ثوانٍ.
           </Text>
+          {pushRegistered === true && (
+            <Text style={[styles.notifStatus, { color: colors.success }]}>● الإشعارات مسجّلة على الخادم</Text>
+          )}
+          {pushRegistered === false && (
+            <Text style={[styles.notifStatus, { color: '#f59e0b' }]}>● الإشعارات غير مسجّلة — اضغط الزر للتفعيل</Text>
+          )}
           <TouchableOpacity
             style={[styles.testBtn, testingPush && styles.saveBtnDisabled]}
             onPress={handleTestNotification}
@@ -281,6 +301,12 @@ const getStyles = (colors: any) => StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
     lineHeight: 20,
+    textAlign: 'right',
+    marginBottom: 8,
+  },
+  notifStatus: {
+    fontSize: 13,
+    fontWeight: '600',
     textAlign: 'right',
     marginBottom: 14,
   },
