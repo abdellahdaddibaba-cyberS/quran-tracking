@@ -23,6 +23,7 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(false);
   const [testingPush, setTestingPush] = useState(false);
   const [pushRegistered, setPushRegistered] = useState<boolean | null>(null);
+  const [showFcmHelp, setShowFcmHelp] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | null; text: string }>({ type: null, text: '' });
 
   useEffect(() => {
@@ -48,9 +49,12 @@ export default function SettingsScreen() {
 
     setTestingPush(true);
     setStatusMsg({ type: null, text: '' });
+    setShowFcmHelp(false);
     try {
       const result = await setupNotifications();
       if (!result.ok) {
+        const isFcm = /FCM|Firebase|firebase/i.test(result.message || '');
+        setShowFcmHelp(isFcm);
         showStatus('error', result.message || 'فشل تسجيل الإشعارات — حاول مجدداً');
         setPushRegistered(false);
         return;
@@ -158,8 +162,21 @@ export default function SettingsScreen() {
           <Text style={styles.notifTitle}>إشعارات التحصيل</Text>
           <Text style={styles.notifHint}>
             اضغط الزر أدناه لاختبار الإشعارات. يجب أن يصل إشعار تجريبي خلال ثوانٍ.
-            {'\n'}⚠️ يعمل فقط على هاتف Android/iOS عبر Expo Go — وليس من المتصفح.
+            {'\n'}📱 APK المثبّت يحتاج إعداد FCM في Firebase.
+            {'\n'}✅ للاختبار السريع بدون FCM: استخدم Expo Go على الهاتف.
           </Text>
+          {showFcmHelp && (
+            <View style={styles.fcmHelpBox}>
+              <Text style={styles.fcmHelpTitle}>خطوات إعداد FCM (مرة واحدة):</Text>
+              <Text style={styles.fcmHelpText}>
+                1. firebase.google.com → مشروع جديد{'\n'}
+                2. أضف تطبيق Android — الحزمة: com.qurancenter.tracking{'\n'}
+                3. حمّل google-services.json → ضعه في مجلد mobile/{'\n'}
+                4. expo.dev → مشروعك → Credentials → Android → FCM V1 → ارفع مفتاح Service Account{'\n'}
+                5. cd mobile && eas build --platform android --profile preview
+              </Text>
+            </View>
+          )}
           {pushRegistered === true && (
             <Text style={[styles.notifStatus, { color: colors.success }]}>● الإشعارات مسجّلة على الخادم</Text>
           )}
@@ -315,6 +332,27 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontWeight: '600',
     textAlign: 'right',
     marginBottom: 14,
+  },
+  fcmHelpBox: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  fcmHelpTitle: {
+    color: '#f59e0b',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'right',
+    marginBottom: 8,
+  },
+  fcmHelpText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 20,
+    textAlign: 'right',
   },
   testBtn: {
     backgroundColor: colors.success,

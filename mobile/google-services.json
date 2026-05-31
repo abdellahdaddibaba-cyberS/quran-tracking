@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "530966236872",
+    "project_id": "qurancentertracking",
+    "storage_bucket": "qurancentertracking.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:530966236872:android:f41f64b67d1d02b2dc9ffd",
+        "android_client_info": {
+          "package_name": "com.qurancenter.tracking"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDDyLM9iupYXb6e_0-i-3nkMclw4mazjzs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

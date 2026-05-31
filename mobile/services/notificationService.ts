@@ -164,7 +164,7 @@ async function saveTokenToServer(token: string): Promise<NotificationSetupResult
 function describeTokenError(error: unknown): string {
   const msg = error instanceof Error ? error.message : String(error);
   if (/firebase|fcm|FirebaseApp/i.test(msg)) {
-    return 'يجب إعداد FCM في expo.dev ثم إعادة بناء التطبيق (ليس تحديث OTA)';
+    return 'يلزم إعداد FCM في Firebase وexpo.dev ثم إعادة بناء APK (راجع التعليمات أدناه)';
   }
   if (/project/i.test(msg)) {
     return 'خطأ في إعداد مشروع Expo — أعد بناء التطبيق';
