@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { setupNotifications, syncPushTokenIfNeeded } from '../services/notificationService';
+import { isPushSupported, setupNotifications, syncPushTokenIfNeeded } from '../services/notificationService';
 
 /**
  * يسجّل رمز الإشعارات عند تسجيل الدخول ويعيد المزامنة عند العودة للتطبيق
@@ -11,7 +11,7 @@ export function usePushNotifications() {
   const registered = useRef(false);
 
   useEffect(() => {
-    if (loading || !user || user.role !== 'parent') return;
+    if (!isPushSupported() || loading || !user || user.role !== 'parent') return;
 
     const register = async () => {
       if (!registered.current) {
@@ -26,7 +26,7 @@ export function usePushNotifications() {
   }, [user, loading]);
 
   useEffect(() => {
-    if (!user || user.role !== 'parent') return;
+    if (!isPushSupported() || !user || user.role !== 'parent') return;
 
     const onAppStateChange = (state: AppStateStatus) => {
       if (state === 'active') {

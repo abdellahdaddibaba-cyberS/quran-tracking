@@ -1,6 +1,7 @@
 const { Op } = require('sequelize');
 const DailyTracking = require('../models/DailyTracking');
 const Student = require('../models/Student');
+const User = require('../models/User');
 
 // ─── إدخال يومي جماعي (Bulk Insert / Upsert) ──────────────────────────────
 const bulkInsertTracking = async (req, res) => {

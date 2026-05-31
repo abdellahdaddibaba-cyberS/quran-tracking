@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { getStudentIdFromNotification } from '../services/notificationService';
+import { getStudentIdFromNotification, isPushSupported } from '../services/notificationService';
 
 const HANDLED_PREFIX = 'handled_notif_';
 
@@ -23,12 +23,14 @@ async function navigateFromNotification(
 }
 
 /**
- * عند النقر على إشعار التحصيل، يفتح صفحة الطالب المعني
+ * عند النقر على إشعار التحصيل، يفتح صفحة الطالب المعني (iOS/Android فقط)
  */
 export function useNotificationNavigation() {
   const router = useRouter();
 
   useEffect(() => {
+    if (!isPushSupported()) return;
+
     Notifications.getLastNotificationResponseAsync().then((response) => {
       if (response) navigateFromNotification(response, router);
     });

@@ -6,8 +6,9 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
-import { authAPI } from '../services/api';
-import { ChevronLeft, Save, CheckCircle, AlertCircle, Loader } from 'lucide-react-native';
+import { authAPI, mobileAPI } from '../services/api';
+import { setupNotifications } from '../services/notificationService';
+import { ChevronLeft, Save, CheckCircle, AlertCircle, Bell } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SettingsScreen() {
@@ -20,11 +21,38 @@ export default function SettingsScreen() {
   const [oldPassword, setOldPassword] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [testingPush, setTestingPush] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | null; text: string }>({ type: null, text: '' });
 
   const showStatus = (type: 'success' | 'error', text: string) => {
     setStatusMsg({ type, text });
     setTimeout(() => setStatusMsg({ type: null, text: '' }), 5000);
+  };
+
+  const handleTestNotification = async () => {
+    setTestingPush(true);
+    setStatusMsg({ type: null, text: '' });
+    try {
+      const registered = await setupNotifications();
+      if (!registered) {
+        showStatus('error', 'لم يتم تفعيل الإشعارات. اسمح بالإشعارات من إعدادات الهاتف.');
+        return;
+      }
+
+      const res = await mobileAPI.testPush();
+      if (res.data?.success) {
+        showStatus('success', res.data.message || 'تم إرسال إشعار تجريبي — تحقق من شريط الإشعارات');
+      } else {
+        showStatus('error', res.data?.message || 'فشل إرسال الإشعار التجريبي');
+      }
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.message ||
+        'تعذر إرسال الإشعار. تأكد من الاتصال بالإنترنت وأعد المحاولة.';
+      showStatus('error', msg);
+    } finally {
+      setTestingPush(false);
+    }
   };
 
   const handleSave = async () => {
@@ -106,6 +134,27 @@ export default function SettingsScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.sectionTitle}>تعديل بيانات الحساب</Text>
+
+        <View style={styles.notifCard}>
+          <Text style={styles.notifTitle}>إشعارات التحصيل</Text>
+          <Text style={styles.notifHint}>
+            اضغط الزر أدناه لاختبار الإشعارات قبل بناء التطبيق. يجب أن يصل إشعار تجريبي خلال ثوانٍ.
+          </Text>
+          <TouchableOpacity
+            style={[styles.testBtn, testingPush && styles.saveBtnDisabled]}
+            onPress={handleTestNotification}
+            disabled={testingPush}
+          >
+            {testingPush ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Text style={styles.testBtnText}>اختبار الإشعار</Text>
+                <Bell size={20} color="#fff" />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
 
         {/* Status Message */}
         {statusMsg.type && (
@@ -213,6 +262,38 @@ const getStyles = (colors: any) => StyleSheet.create({
     marginBottom: 20,
     textAlign: 'right',
   },
+  notifCard: {
+    backgroundColor: colors.surfaceTrans,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  notifTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'right',
+    marginBottom: 8,
+  },
+  notifHint: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: 'right',
+    marginBottom: 14,
+  },
+  testBtn: {
+    backgroundColor: colors.success,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 12,
+  },
+  testBtnText: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
   statusBox: {
     flexDirection: 'row-reverse',
     alignItems: 'center',

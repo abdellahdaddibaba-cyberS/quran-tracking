@@ -124,6 +124,7 @@ export const mobileAPI = {
   getTracking: (studentId: string | number) => api.get(`/mobile/tracking/${studentId}`),
   getWeeklyReport: (params: { startDate: string; endDate: string; halaqaId?: string | number }) =>
     api.get('/mobile/weekly-report', { params }),
+  testPush: () => api.post('/mobile/test-push'),
 };
 
 export default api;

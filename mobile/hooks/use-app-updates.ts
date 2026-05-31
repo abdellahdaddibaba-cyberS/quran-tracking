@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import * as Updates from 'expo-updates';
 
 /**
@@ -6,7 +7,7 @@ import * as Updates from 'expo-updates';
  */
 export function useAppUpdates() {
   useEffect(() => {
-    if (__DEV__ || !Updates.isEnabled) return;
+    if (Platform.OS === 'web' || __DEV__ || !Updates.isEnabled) return;
 
     async function checkForUpdates() {
       try {

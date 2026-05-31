@@ -2,6 +2,8 @@ const { Op } = require('sequelize');
 const Student = require('../models/Student');
 const DailyTracking = require('../models/DailyTracking');
 const Halaqa = require('../models/Halaqa');
+const User = require('../models/User');
+const { sendPushNotification } = require('../utils/notification');
 
 /**
  * جلب أبناء ولي الأمر المسجل دخوله حالياً
@@ -107,4 +109,49 @@ const getWeeklyReport = async (req, res) => {
   }
 };
 
-module.exports = { getMyStudents, getStudentTracking, getWeeklyReport };
+/**
+ * إرسال إشعار تجريبي لولي الأمر الحالي (للاختبار قبل النشر)
+ */
+const testPushNotification = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user._id, {
+      attributes: ['_id', 'fullName', 'pushToken'],
+    });
+
+    if (!user?.pushToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'لا يوجد رمز إشعار محفوظ. افتح التطبيق واسمح بالإشعارات ثم حاول مجدداً.',
+      });
+    }
+
+    const result = await sendPushNotification(
+      [user.pushToken],
+      'اختبار إشعارات تحصيلي 🔔',
+      `مرحباً ${user.fullName}! إذا وصلك هذا الإشعار فالنظام يعمل بنجاح.`,
+      { type: 'test', studentId: '' }
+    );
+
+    if (result.sent === 0) {
+      return res.status(502).json({
+        success: false,
+        message: 'تعذر إرسال الإشعار',
+        errors: result.errors,
+        receiptErrors: result.receiptErrors,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'تم إرسال إشعار تجريبي — تحقق من هاتفك خلال ثوانٍ',
+      data: {
+        sent: result.sent,
+        receiptErrors: result.receiptErrors,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { getMyStudents, getStudentTracking, getWeeklyReport, testPushNotification };

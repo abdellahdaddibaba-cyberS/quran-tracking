@@ -8,15 +8,21 @@ import { authAPI } from './api';
 const PUSH_TOKEN_KEY = 'expo_push_token';
 export const NOTIFICATION_CHANNEL_ID = 'default';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+export function isPushSupported(): boolean {
+  return Platform.OS === 'ios' || Platform.OS === 'android';
+}
+
+if (isPushSupported()) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+}
 
 function getProjectId(): string | undefined {
   return (
@@ -61,6 +67,11 @@ async function requestNotificationPermissions(): Promise<boolean> {
  * طلب صلاحية الإشعارات والحصول على رمز دفع إكسبو (Expo Push Token)
  */
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  if (!isPushSupported()) {
+    console.log('⚠️ الإشعارات متاحة فقط على iOS و Android');
+    return null;
+  }
+
   if (!Device.isDevice) {
     console.log('⚠️ الإشعارات لا تعمل على المحاكيات — استخدم جهازاً حقيقياً');
     return null;
@@ -117,6 +128,14 @@ export async function setupNotifications(): Promise<boolean> {
     const saved = await saveTokenToServer(token);
     if (saved) {
       console.log('✅ تم حفظ رمز الإشعارات في قاعدة البيانات');
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'تم تفعيل الإشعارات ✅',
+          body: 'سيصلك تنبيه عند تسجيل تحصيل ابنك في الحلقة',
+          sound: true,
+        },
+        trigger: null,
+      });
     }
     return saved;
   } catch (error) {

@@ -86,7 +86,7 @@ export default function AISuggestion() {
       {/* ─── Info Banner ─────────────────────────────────────── */}
       <div className="alert alert-info" style={{ marginBottom: '1.5rem' }}>
         <Brain size={18} />
-        يحلل النظام آخر 7 أيام لكل طالب ويقترح تعديل القسط بناءً على معدل الأداء — لن يتم تطبيق أي تغيير تلقائياً.
+        يحلل الذكاء الاصطناعي آخر 14 يوماً لكل طالب ويقترح تعديل القسط بناءً على الأداء والحضور — لن يتم تطبيق أي تغيير تلقائياً.
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '1.5rem', alignItems: 'start' }}>
@@ -157,7 +157,7 @@ export default function AISuggestion() {
               <div className="empty-state">
                 <Brain size={56} />
                 <h3>اختر طالباً وابدأ التحليل</h3>
-                <p>سيحلل النظام آخر 7 أيام ويعطيك اقتراحاً بشأن القسط اليومي</p>
+                <p>سيحلل الذكاء الاصطناعي آخر 14 يوماً ويعطيك اقتراحاً بشأن القسط اليومي</p>
               </div>
             </div>
           ) : (
