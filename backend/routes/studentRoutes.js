@@ -8,6 +8,9 @@ const {
   updateStudent,
   deleteStudent,
 } = require('../controllers/studentController');
+const { protect, staffOnly } = require('../middleware/authMiddleware');
+
+router.use(protect, staffOnly);
 
 router.post('/bulk', createBulkStudents);
 router.route('/').get(getStudents).post(createStudent);

@@ -3,7 +3,10 @@ const { Sequelize } = require('sequelize');
 /**
  * تهيئة Sequelize للاتصال بقاعدة بيانات PostgreSQL
  */
-const isProduction = process.env.NODE_ENV === 'production';
+const nodeEnv = (process.env.NODE_ENV || 'development').trim();
+const isProduction = nodeEnv === 'production';
+// SSL فقط عند الحاجة (Render/Supabase): PG_SSL=true — وليس تلقائياً مع production
+const useSsl = process.env.PG_SSL === 'true' || process.env.PG_SSL === '1';
 
 const sequelize = new Sequelize(
   String(process.env.PG_DB),
@@ -13,8 +16,8 @@ const sequelize = new Sequelize(
     host: String(process.env.PG_HOST),
     port: process.env.PG_PORT,
     dialect: 'postgres',
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
-    dialectOptions: isProduction ? {
+    logging: nodeEnv === 'development' ? console.log : false,
+    dialectOptions: useSsl ? {
       ssl: {
         require: true,
         rejectUnauthorized: false
@@ -37,10 +40,14 @@ const connectDB = async () => {
     require('../models/Prize');
     require('../models/LoginLog');
     
-    // مزامنة النماذج (إنشاء الجداول إذا لم تكن موجودة)
-    // في الإنتاج، يفضل استخدام migrations
-    await sequelize.sync({ alter: true });
-    console.log('✅ تم مزامنة جميع الجداول بنجاح');
+    // التطوير: تحديث الجداول تلقائياً. الإنتاج: إنشاء فقط (استخدم migrations للتغييرات)
+    const syncOptions = isProduction ? {} : { alter: true };
+    await sequelize.sync(syncOptions);
+    console.log(
+      isProduction
+        ? '✅ تم مزامنة الجداول (وضع الإنتاج — بدون alter)'
+        : '✅ تم مزامنة جميع الجداول بنجاح (وضع التطوير — alter)'
+    );
     
     // التأكد من وجود الفهارس الهامة لتحسين الأداء
     await sequelize.query('CREATE INDEX IF NOT EXISTS "students_halaqaId" ON "students" ("halaqaId");');

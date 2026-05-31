@@ -24,11 +24,9 @@ export default function HomeScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.replace('/login');
-    } else if (user) {
+    if (!authLoading && user) {
       fetchStudents();
-      setupNotifications(); // تسجيل وتحديث رمز إشعارات الهاتف لولي الأمر
+      setupNotifications();
     }
   }, [user, authLoading]);
 
@@ -49,7 +47,15 @@ export default function HomeScreen() {
     fetchStudents();
   };
 
-  if (authLoading || (loading && !refreshing)) {
+  if (authLoading || !user) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.success} />
+      </View>
+    );
+  }
+
+  if (loading && !refreshing) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={colors.success} />

@@ -92,6 +92,7 @@ export const usersAPI = {
 export const mobileAPI = {
   getStudents: () => api.get('/mobile/students'),
   getTracking: (studentId) => api.get(`/mobile/tracking/${studentId}`),
+  getWeeklyReport: (params) => api.get('/mobile/weekly-report', { params }),
 };
 
 export default api;

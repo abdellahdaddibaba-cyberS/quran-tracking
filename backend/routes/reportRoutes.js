@@ -10,6 +10,9 @@ const {
   givePrize,
   getRecentPrizes
 } = require('../controllers/reportController');
+const { protect, staffOnly } = require('../middleware/authMiddleware');
+
+router.use(protect, staffOnly);
 
 router.get('/low-pages', getLowPageStudents);
 router.get('/individual-sessions', getIndividualSessions);

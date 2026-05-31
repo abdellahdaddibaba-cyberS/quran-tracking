@@ -2,7 +2,7 @@ const Student = require('../models/Student');
 const DailyTracking = require('../models/DailyTracking');
 
 /**
- * منطق الذكاء الاصطناعي لاقتراح القسط اليومي
+ * اقتراح القسط اليومي (قواعد إحصائية على آخر 7 أيام — ليس نموذج LLM خارجي)
  */
 const getSuggestion = async (req, res) => {
   try {

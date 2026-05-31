@@ -7,6 +7,9 @@ const {
   deleteHalaqaTrackingByDate,
   getAllTrackingRange,
 } = require('../controllers/trackingController');
+const { protect, staffOnly } = require('../middleware/authMiddleware');
+
+router.use(protect, staffOnly);
 
 // إدخال جماعي
 router.post('/bulk', bulkInsertTracking);

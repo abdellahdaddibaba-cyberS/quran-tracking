@@ -73,7 +73,7 @@ export default function App() {
             <Route path="/attendance"  element={<Attendance />} />
             <Route path="/daily-input" element={<DailyInput />} />
             <Route path="/history"          element={<StudentHistory />} />
-            <Route path="/weekly-report"     element={<WeeklyReport />} />
+            <Route path="/weekly-report"     element={<WeeklyReport user={user} />} />
             <Route path="/low-pages"         element={<LowPageReport />} />
             <Route path="/individual-sessions" element={<IndividualSessionReport />} />
             <Route path="/awards"            element={<StudentAwards />} />

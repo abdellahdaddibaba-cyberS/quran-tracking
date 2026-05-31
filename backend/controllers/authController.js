@@ -5,18 +5,10 @@ const jwt = require('jsonwebtoken');
 /**
  * توليد توكن JWT
  */
+const { getJwtSecret } = require('../middleware/authMiddleware');
+
 const generateToken = (id) => {
-  if (!process.env.JWT_SECRET) {
-    console.error('❌ CRITICAL ERROR: JWT_SECRET is not defined in environment variables!');
-    // Fallback for development ONLY - better to fail than crash if user is testing
-    // But jwt.sign WILL crash if secret is empty.
-    return jwt.sign({ id }, 'development_secret_fallback', {
-      expiresIn: '30d',
-    });
-  }
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: '30d',
-  });
+  return jwt.sign({ id }, getJwtSecret(), { expiresIn: '30d' });
 };
 
 /**

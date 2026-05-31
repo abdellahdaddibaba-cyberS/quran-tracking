@@ -1,3 +1,4 @@
+const { Op } = require('sequelize');
 const Student = require('../models/Student');
 const DailyTracking = require('../models/DailyTracking');
 const Halaqa = require('../models/Halaqa');
@@ -7,7 +8,6 @@ const Halaqa = require('../models/Halaqa');
  */
 const getMyStudents = async (req, res) => {
   try {
-    console.log('Fetching students for parent ID:', req.user?._id);
     const students = await Student.findAll({
       where: { parentId: req.user._id },
       include: [{
@@ -56,4 +56,55 @@ const getStudentTracking = async (req, res) => {
   }
 };
 
-module.exports = { getMyStudents, getStudentTracking };
+/**
+ * تقرير أسبوعي لأبناء ولي الأمر (للويب والموبايل)
+ */
+const getWeeklyReport = async (req, res) => {
+  try {
+    const { startDate, endDate, halaqaId } = req.query;
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'معاملات startDate و endDate مطلوبة',
+      });
+    }
+
+    const studentWhere = { parentId: req.user._id };
+    if (halaqaId) studentWhere.halaqaId = halaqaId;
+
+    const students = await Student.findAll({
+      where: studentWhere,
+      include: [{ model: Halaqa, as: 'halaqa', attributes: ['_id', 'name', 'supervisor'] }],
+    });
+
+    if (students.length === 0) {
+      return res.json({ success: true, data: { halaqat: [], students: [], tracking: [] } });
+    }
+
+    const studentIds = students.map((s) => s._id);
+    const tracking = await DailyTracking.findAll({
+      where: {
+        studentId: { [Op.in]: studentIds },
+        date: { [Op.between]: [startDate, endDate] },
+      },
+    });
+
+    const halaqaMap = new Map();
+    students.forEach((s) => {
+      if (s.halaqa) halaqaMap.set(s.halaqa._id, s.halaqa);
+    });
+
+    res.json({
+      success: true,
+      data: {
+        halaqat: Array.from(halaqaMap.values()),
+        students,
+        tracking,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { getMyStudents, getStudentTracking, getWeeklyReport };

@@ -2,7 +2,7 @@
   "expo": {
     "name": "تحصيلي",
     "slug": "mobile",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/square logo.png",
     "scheme": "mobile",
@@ -49,6 +49,12 @@
       "eas": {
         "projectId": "f0855e0d-1932-40f4-80ed-b6ba8c189c8e"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/f0855e0d-1932-40f4-80ed-b6ba8c189c8e"
     }
   }
 }

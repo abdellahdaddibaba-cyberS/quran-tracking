@@ -1,6 +1,5 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
-console.log('JWT_SECRET loaded:', process.env.JWT_SECRET ? 'Yes' : 'No');
 const express = require('express');
 const cors = require('cors');
 const { connectDB } = require('./config/db');
@@ -39,6 +38,13 @@ app.use('/api/users',    require('./routes/userRoutes'));
 // مسار التحقق من الخادم
 app.get('/', (req, res) => {
   res.json({ message: '✅ خادم نظام متابعة التحصيل يعمل بنجاح' });
+});
+
+app.get('/api', (req, res) => {
+  res.json({
+    message: '✅ واجهة API تعمل — استخدم المسارات مثل /api/auth/login',
+    ok: true,
+  });
 });
 
 // ─── معالج الأخطاء (يجب أن يكون آخر middleware) ──────────────────

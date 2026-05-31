@@ -3,7 +3,7 @@ import { BarChart2, ChevronRight, ChevronLeft, Download, FileSpreadsheet } from 
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import toast from 'react-hot-toast';
-import { halaqatAPI, studentsAPI, trackingAPI } from '../services/api';
+import { halaqatAPI, studentsAPI, trackingAPI, mobileAPI } from '../services/api';
 
 function getWeekDays(dateInput) {
   const [y, m, d] = dateInput.split('-');
@@ -31,7 +31,28 @@ function toLocalDate(isoStr) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function WeeklyReport() {
+function buildWeekMatrix(students, tracking, weekDays) {
+  const m = {};
+  students.forEach((st) => {
+    m[st._id] = {};
+    weekDays.forEach((day) => { m[st._id][day.dateStr] = null; });
+  });
+  tracking.forEach((rec) => {
+    const sid = rec.studentId?._id || rec.studentId;
+    const rDate = toLocalDate(rec.date);
+    if (m[sid]) {
+      m[sid][rDate] = {
+        pages: rec.pagesMemorized,
+        attendance: rec.attendance,
+        isLate: rec.isLate,
+      };
+    }
+  });
+  return m;
+}
+
+export default function WeeklyReport({ user }) {
+  const isParent = user?.role === 'parent';
   const [baseDate, setBaseDate] = useState(() => {
     const d = new Date();
     const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -56,8 +77,27 @@ export default function WeeklyReport() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    halaqatAPI.getAll().then(r => setHalaqat(r.data.data)).catch(() => { });
-  }, []);
+    if (isParent) {
+      mobileAPI.getStudents()
+        .then((res) => {
+          const kids = res.data.data || [];
+          const map = new Map();
+          kids.forEach((s) => {
+            if (s.halaqa) {
+              map.set(s.halaqa._id, {
+                _id: s.halaqa._id,
+                name: s.halaqa.name,
+                supervisor: s.halaqa.supervisor,
+              });
+            }
+          });
+          setHalaqat(Array.from(map.values()));
+        })
+        .catch(() => { });
+      return;
+    }
+    halaqatAPI.getAll().then((r) => setHalaqat(r.data.data)).catch(() => { });
+  }, [isParent]);
 
   useEffect(() => {
     if (!selectedHalaqa) { setStudents([]); setMatrix({}); return; }
@@ -66,31 +106,32 @@ export default function WeeklyReport() {
       try {
         const startDate = weekDays[0].dateStr;
         const endDate = weekDays[5].dateStr;
-        const [sRes, tRes] = await Promise.all([
-          studentsAPI.getByHalaqa(selectedHalaqa),
-          trackingAPI.getByHalaqa(selectedHalaqa, { startDate, endDate }),
-        ]);
-        const fetchedStudents = sRes.data.data;
-        const fetchedTracking = tRes.data.data;
-
-        const m = {};
-        fetchedStudents.forEach(st => {
-          m[st._id] = {};
-          weekDays.forEach(day => { m[st._id][day.dateStr] = null; });
-        });
-        fetchedTracking.forEach(rec => {
-          const sid = rec.studentId?._id || rec.studentId;
-          const rDate = toLocalDate(rec.date);
-          if (m[sid]) m[sid][rDate] = { pages: rec.pagesMemorized, attendance: rec.attendance, isLate: rec.isLate };
-        });
+        let fetchedStudents;
+        let fetchedTracking;
+        if (isParent) {
+          const res = await mobileAPI.getWeeklyReport({
+            startDate,
+            endDate,
+            halaqaId: selectedHalaqa,
+          });
+          fetchedStudents = res.data.data.students;
+          fetchedTracking = res.data.data.tracking;
+        } else {
+          const [sRes, tRes] = await Promise.all([
+            studentsAPI.getByHalaqa(selectedHalaqa),
+            trackingAPI.getByHalaqa(selectedHalaqa, { startDate, endDate }),
+          ]);
+          fetchedStudents = sRes.data.data;
+          fetchedTracking = tRes.data.data;
+        }
 
         setStudents(fetchedStudents);
-        setMatrix(m);
+        setMatrix(buildWeekMatrix(fetchedStudents, fetchedTracking, weekDays));
       } catch { /* ignore */ }
       finally { setLoading(false); }
     };
     load();
-  }, [selectedHalaqa, baseDate, weekDays]);
+  }, [selectedHalaqa, baseDate, weekDays, isParent]);
 
   const shiftWeek = offset => {
     const [y, m, d] = baseDate.split('-');
@@ -356,10 +397,12 @@ export default function WeeklyReport() {
           ملخص التحصيل الأسبوعي
         </div>
 
-        <button className="btn btn-secondary" onClick={handleExportAll} style={{ gap: '0.6rem', padding: '0.6rem 1.2rem' }}>
-          <FileSpreadsheet size={18} />
-          تصدير التقرير الفاخر (Excel)
-        </button>
+        {!isParent && (
+          <button className="btn btn-secondary" onClick={handleExportAll} style={{ gap: '0.6rem', padding: '0.6rem 1.2rem' }}>
+            <FileSpreadsheet size={18} />
+            تصدير التقرير الفاخر (Excel)
+          </button>
+        )}
 
         {students.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'flex-start' }}>

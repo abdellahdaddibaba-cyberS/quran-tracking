@@ -31,7 +31,20 @@ export default function LoginScreen() {
         router.replace('/');
       }
     } catch (error: any) {
-      setErrorMessage(error.response?.data?.message || 'تأكد من البيانات والاتصال بالخادم');
+      if (!error.response) {
+        const code = error?.code || '';
+        if (code === 'ECONNABORTED' || error?.message?.includes('timeout')) {
+          setErrorMessage('الخادم بطيء في الاستيقاظ. انتظر 30 ثانية وحاول مرة أخرى، أو تأكد من تحديث التطبيق.');
+        } else {
+          setErrorMessage('لا يوجد اتصال بالخادم. تحقق من الإنترنت أو أن التطبيق محدّث (أعد البناء بعد آخر تعديل).');
+        }
+      } else if (error.response.status === 401) {
+        setErrorMessage(error.response.data?.message || 'اسم المستخدم أو كلمة المرور غير صحيحة');
+      } else if (error.response.status === 404) {
+        setErrorMessage('عنوان الخادم غير صحيح. أعد تثبيت التطبيق أو تواصل مع الإدارة.');
+      } else {
+        setErrorMessage(error.response.data?.message || 'تأكد من البيانات والاتصال بالخادم');
+      }
     } finally {
       setLoading(false);
     }
@@ -105,7 +118,7 @@ export default function LoginScreen() {
             disabled={loading}
           >
             <Text style={styles.buttonText}>
-              {loading ? 'جاري التحقق...' : 'تسجيل الدخول'}
+              {loading ? 'جاري الاتصال بالخادم...' : 'تسجيل الدخول'}
             </Text>
           </TouchableOpacity>
         </View>
