@@ -2,7 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // الرابط الافتراضي للخادم السحابي
-const API_URL = 'https://quran-tracking-api.onrender.com/api';
+const API_URL = 'https://quran-tracking-api.onrender.com';
 
 const api = axios.create({
   baseURL: API_URL,
