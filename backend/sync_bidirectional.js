@@ -84,11 +84,24 @@ async function runBidirectionalSync() {
     user: process.env.PG_USER,
     password: process.env.PG_PASSWORD,
     database: process.env.PG_DB,
+    keepAlive: true,
+    connectionTimeoutMillis: 30000,
   });
 
   const supabaseClient = new Client({
     connectionString: process.env.SUPABASE_DB_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
+    keepAlive: true,
+    connectionTimeoutMillis: 30000,
+    query_timeout: 20000,
+  });
+
+  // منع تعطل العملية عند انقطاع الاتصال غير المتوقع
+  supabaseClient.on('error', (err) => {
+    console.error('⚠️ تحذير: انقطع اتصال Supabase:', err.message);
+  });
+  localClient.on('error', (err) => {
+    console.error('⚠️ تحذير: انقطع اتصال قاعدة البيانات المحلية:', err.message);
   });
 
   try {
