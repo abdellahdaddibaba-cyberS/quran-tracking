@@ -6,7 +6,7 @@ const API_URL = 'https://quran-tracking-api.onrender.com/api';
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 10000,
+  timeout: 30000, // 30s to handle Render free tier cold-start delays
 });
 
 api.interceptors.request.use(async (config) => {
