@@ -41,12 +41,17 @@ export default function SettingsScreen() {
   };
 
   const handleTestNotification = async () => {
+    if (!isPushSupported()) {
+      showStatus('error', 'الإشعارات متاحة فقط على تطبيق Android أو iOS');
+      return;
+    }
+
     setTestingPush(true);
     setStatusMsg({ type: null, text: '' });
     try {
-      const registered = await setupNotifications();
-      if (!registered) {
-        showStatus('error', 'فشل تسجيل الإشعارات على الخادم. تحقق من الإنترنت وحاول مجدداً.');
+      const result = await setupNotifications();
+      if (!result.ok) {
+        showStatus('error', result.message || 'فشل تسجيل الإشعارات — حاول مجدداً');
         setPushRegistered(false);
         return;
       }
@@ -153,6 +158,7 @@ export default function SettingsScreen() {
           <Text style={styles.notifTitle}>إشعارات التحصيل</Text>
           <Text style={styles.notifHint}>
             اضغط الزر أدناه لاختبار الإشعارات. يجب أن يصل إشعار تجريبي خلال ثوانٍ.
+            {'\n'}⚠️ يعمل فقط على هاتف Android/iOS عبر Expo Go — وليس من المتصفح.
           </Text>
           {pushRegistered === true && (
             <Text style={[styles.notifStatus, { color: colors.success }]}>● الإشعارات مسجّلة على الخادم</Text>

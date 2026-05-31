@@ -1,5 +1,4 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
 const DEFAULT_API = 'https://quran-tracking-api.onrender.com/api';
@@ -7,28 +6,29 @@ const DEFAULT_ROOT = 'https://quran-tracking-api.onrender.com';
 
 export const API_URL =
   (Constants.expoConfig?.extra?.apiUrl as string | undefined)?.trim() || DEFAULT_API;
+
 const SERVER_ROOT =
   (Constants.expoConfig?.extra?.serverRoot as string | undefined)?.trim() || DEFAULT_ROOT;
 
 const REQUEST_TIMEOUT_MS = 120000;
+const WAKE_TIMEOUT_MS = 60000;
 
-function normalizeApiBase(url: string): string {
-  const trimmed = url.trim().replace(/\/$/, '');
+function apiRootFromBase(apiBase: string): string {
+  return apiBase.replace(/\/api\/?$/, '');
+}
+
+/** دائماً نستخدم عنوان الإنتاج من app.json — لا نعتمد على تخزين محلي قديم */
+export function getApiBaseUrl(): string {
+  const trimmed = API_URL.trim().replace(/\/$/, '');
   return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
 }
 
-async function resolveBaseUrl(): Promise<string> {
-  if (__DEV__) {
-    const savedUrl = await AsyncStorage.getItem('apiUrl');
-    if (savedUrl?.trim()) {
-      return normalizeApiBase(savedUrl);
-    }
-  }
-  return API_URL;
+export function getServerRoot(): string {
+  return apiRootFromBase(getApiBaseUrl()) || SERVER_ROOT;
 }
 
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: getApiBaseUrl(),
   timeout: REQUEST_TIMEOUT_MS,
   headers: {
     Accept: 'application/json',
@@ -37,11 +37,12 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
+  const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
   const token = await AsyncStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  config.baseURL = await resolveBaseUrl();
+  config.baseURL = getApiBaseUrl();
   return config;
 });
 
@@ -54,7 +55,7 @@ async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function requestWithRetry<T>(config: AxiosRequestConfig, retries = 1): Promise<T> {
+async function requestWithRetry<T>(config: AxiosRequestConfig, retries = 2): Promise<T> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -63,36 +64,18 @@ async function requestWithRetry<T>(config: AxiosRequestConfig, retries = 1): Pro
     } catch (error) {
       lastError = error;
       if (!isNetworkError(error) || attempt === retries) throw error;
-      await sleep(3000);
+      await sleep(5000);
       await wakeServer();
     }
   }
   throw lastError;
 }
 
-/** إيقاظ خادم Render قبل تسجيل الدخول */
-export async function wakeServer(): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    try {
-      const res = await fetch(`${SERVER_ROOT}/`, { signal: controller.signal });
-      return res.ok;
-    } finally {
-      clearTimeout(timer);
-    }
-  } catch {
-    return false;
-  }
-}
-
-/** فحص الاتصال (للشاشة أو التشخيص) */
-export async function checkServerConnection(): Promise<boolean> {
+async function pingUrl(url: string): Promise<boolean> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
+  const timer = setTimeout(() => controller.abort(), WAKE_TIMEOUT_MS);
   try {
-    const base = await resolveBaseUrl();
-    const res = await fetch(base, { signal: controller.signal });
+    const res = await fetch(url, { signal: controller.signal });
     return res.ok;
   } catch {
     return false;
@@ -101,9 +84,38 @@ export async function checkServerConnection(): Promise<boolean> {
   }
 }
 
+/** إيقاظ خادم Render (قد يستغرق حتى 60 ثانية عند السبات) */
+export async function wakeServer(): Promise<boolean> {
+  const root = getServerRoot();
+  const apiBase = getApiBaseUrl();
+  const targets = [`${root}/`, `${apiBase}`];
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    for (const url of targets) {
+      if (await pingUrl(url)) {
+        return true;
+      }
+    }
+    if (attempt < 2) {
+      await sleep(5000);
+    }
+  }
+  return false;
+}
+
+/** فحص الاتصال (للشاشة أو التشخيص) */
+export async function checkServerConnection(): Promise<boolean> {
+  return wakeServer();
+}
+
 export const authAPI = {
   login: async (credentials: { username: string; password: string }) => {
-    await wakeServer();
+    const awake = await wakeServer();
+    if (!awake) {
+      const err = new Error('SERVER_WAKE_FAILED') as Error & { code?: string };
+      err.code = 'SERVER_WAKE_FAILED';
+      throw err;
+    }
     const data = await requestWithRetry<{
       success: boolean;
       data: { token: string; _id: string; username: string; fullName: string; role: string };
@@ -111,12 +123,22 @@ export const authAPI = {
       method: 'POST',
       url: '/auth/login',
       data: credentials,
-    });
+    }, 3);
     return { data };
   },
   getMe: () => api.get('/auth/me'),
   updateProfile: (data: unknown) => api.put('/auth/profile', data),
-  savePushToken: (pushToken: string) => api.post('/auth/save-push-token', { pushToken }),
+  savePushToken: async (pushToken: string) => {
+    const data = await requestWithRetry<{ success: boolean; message?: string }>(
+      {
+        method: 'POST',
+        url: '/auth/save-push-token',
+        data: { pushToken },
+      },
+      4
+    );
+    return { data };
+  },
 };
 
 export const mobileAPI = {

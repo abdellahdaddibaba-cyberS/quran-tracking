@@ -102,59 +102,130 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
 }
 
-async function saveTokenToServer(token: string): Promise<boolean> {
-  await wakeServer();
+export type NotificationSetupResult = {
+  ok: boolean;
+  message?: string;
+};
 
-  for (let attempt = 0; attempt < 3; attempt++) {
+async function saveTokenToServer(token: string): Promise<NotificationSetupResult> {
+  const awake = await wakeServer();
+  if (!awake) {
+    return {
+      ok: false,
+      message: 'الخادم نائم — انتظر 30–60 ثانية ثم اضغط الزر مجدداً',
+    };
+  }
+
+  let lastMessage = 'فشل حفظ رمز الإشعارات على الخادم';
+
+  for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const res = await authAPI.savePushToken(token);
       if (res?.data?.success) {
-        return true;
+        return { ok: true };
       }
-      console.error('❌ الخادم رفض حفظ رمز الإشعارات:', res?.data?.message);
+      lastMessage = res?.data?.message || lastMessage;
+      console.error('❌ الخادم رفض حفظ رمز الإشعارات:', lastMessage);
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } }; message?: string };
-      console.error(
-        `❌ فشل حفظ رمز الإشعارات (محاولة ${attempt + 1}):`,
-        err?.response?.data?.message || err?.message || error
-      );
+      const err = error as {
+        response?: { status?: number; data?: { message?: string } };
+        message?: string;
+        code?: string;
+      };
+
+      if (err?.response?.status === 401) {
+        return { ok: false, message: 'انتهت الجلسة — سجّل الخروج ثم الدخول مجدداً' };
+      }
+      if (err?.response?.status === 403) {
+        return { ok: false, message: 'هذا الحساب ليس ولي أمر — الإشعارات للأولياء فقط' };
+      }
+
+      if (!err?.response) {
+        lastMessage =
+          err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')
+            ? 'انتهت مهلة الاتصال — الخادم بطيء، حاول بعد 30 ثانية'
+            : 'تعذر الاتصال بالخادم — استخدم Expo Go على الهاتف (ليس المتصفح)';
+      } else {
+        lastMessage = err.response.data?.message || lastMessage;
+      }
+
+      console.error(`❌ فشل حفظ رمز الإشعارات (محاولة ${attempt + 1}):`, lastMessage);
     }
-    if (attempt < 2) {
-      await new Promise((r) => setTimeout(r, 2000));
+
+    if (attempt < 3) {
+      await new Promise((r) => setTimeout(r, 5000));
       await wakeServer();
     }
   }
-  return false;
+
+  return { ok: false, message: lastMessage };
+}
+
+function describeTokenError(error: unknown): string {
+  const msg = error instanceof Error ? error.message : String(error);
+  if (/firebase|fcm|FirebaseApp/i.test(msg)) {
+    return 'يجب إعداد FCM في expo.dev ثم إعادة بناء التطبيق (ليس تحديث OTA)';
+  }
+  if (/project/i.test(msg)) {
+    return 'خطأ في إعداد مشروع Expo — أعد بناء التطبيق';
+  }
+  return `تعذر الحصول على رمز الإشعار: ${msg.slice(0, 100)}`;
 }
 
 /**
  * تسجيل الإشعارات وحفظ الرمز — يُستدعى بعد كل تسجيل دخول ناجح
  */
-export async function setupNotifications(): Promise<boolean> {
+export async function setupNotifications(): Promise<NotificationSetupResult> {
   try {
-    const token = await registerForPushNotificationsAsync();
-    if (!token) return false;
+    if (!isPushSupported()) {
+      return { ok: false, message: 'الإشعارات متاحة فقط على تطبيق Android أو iOS' };
+    }
+
+    if (!Device.isDevice) {
+      return { ok: false, message: 'الإشعارات لا تعمل على المحاكي — استخدم جهازاً حقيقياً' };
+    }
+
+    await ensureAndroidChannel();
+
+    const granted = await requestNotificationPermissions();
+    if (!granted) {
+      return { ok: false, message: 'لم يتم منح صلاحية الإشعارات — فعّلها من إعدادات الهاتف' };
+    }
+
+    const projectId = getProjectId();
+    if (!projectId) {
+      return { ok: false, message: 'خطأ في إعداد التطبيق — أعد بناء التطبيق من Expo' };
+    }
+
+    let token: string;
+    try {
+      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      console.log('✅ رمز إشعارات إكسبو:', token);
+      await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+    } catch (error) {
+      console.error('❌ خطأ أثناء الحصول على رمز إشعارات إكسبو:', error);
+      return { ok: false, message: describeTokenError(error) };
+    }
 
     const saved = await saveTokenToServer(token);
-    if (saved) {
+    if (saved.ok) {
       console.log('✅ تم حفظ رمز الإشعارات في قاعدة البيانات');
-      if (isPushSupported()) {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: 'تم تفعيل الإشعارات ✅',
-            body: 'سيصلك تنبيه عند تسجيل تحصيل ابنك في الحلقة',
-            sound: true,
-          },
-          trigger: null,
-        });
-      }
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'تم تفعيل الإشعارات ✅',
+          body: 'سيصلك تنبيه عند تسجيل تحصيل ابنك في الحلقة',
+          sound: true,
+        },
+        trigger: null,
+      });
     } else {
-      console.error('❌ تم الحصول على الرمز لكن فشل حفظه على الخادم');
+      console.error('❌ تم الحصول على الرمز لكن فشل حفظه على الخادم:', saved.message);
     }
+
     return saved;
   } catch (error) {
     console.error('❌ فشل إعداد الإشعارات:', error);
-    return false;
+    return { ok: false, message: 'حدث خطأ غير متوقع أثناء تفعيل الإشعارات' };
   }
 }
 
@@ -164,8 +235,8 @@ export async function setupNotifications(): Promise<boolean> {
 export async function syncPushTokenIfNeeded(): Promise<void> {
   const cached = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
   if (cached) {
-    await saveTokenToServer(cached);
-    return;
+    const result = await saveTokenToServer(cached);
+    if (result.ok) return;
   }
   await setupNotifications();
 }

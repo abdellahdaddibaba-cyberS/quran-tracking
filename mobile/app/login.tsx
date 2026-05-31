@@ -45,12 +45,18 @@ export default function LoginScreen() {
         router.replace('/');
       }
     } catch (error: any) {
-      if (!error.response) {
+      if (error?.code === 'SERVER_WAKE_FAILED' || error?.message === 'SERVER_WAKE_FAILED') {
+        setErrorMessage('الخادم نائم — انتظر 30–60 ثانية ثم حاول تسجيل الدخول مجدداً');
+      } else if (!error.response) {
         const code = error?.code || '';
         if (code === 'ECONNABORTED' || error?.message?.includes('timeout')) {
           setErrorMessage('انتهت مهلة الاتصال. يرجى المحاولة مرة أخرى.');
         } else {
-          setErrorMessage('تعذر الاتصال بالخادم. تحقق من اتصال الإنترنت وحاول مجدداً.');
+          setErrorMessage(
+            Platform.OS === 'web'
+              ? 'تعذر الاتصال — افتح التطبيق عبر Expo Go على الهاتف (المتصفح لا يدعم الإشعارات)'
+              : 'تعذر الاتصال بالخادم. تحقق من اتصال الإنترنت وحاول مجدداً.'
+          );
         }
       } else if (error.response.status === 401) {
         setErrorMessage(error.response.data?.message || 'اسم المستخدم أو كلمة المرور غير صحيحة');

@@ -13,12 +13,16 @@ const corsOrigins = (process.env.CORS_ORIGINS || '')
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const isDevOrigin = (origin) =>
+  /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+)(:\d+)?$/i.test(origin);
+
 app.use(
   cors({
     origin(origin, callback) {
       // تطبيقات الموبايل و Postman لا ترسل Origin
       if (!origin) return callback(null, true);
       if (process.env.NODE_ENV !== 'production') return callback(null, true);
+      if (isDevOrigin(origin)) return callback(null, true);
       if (corsOrigins.length === 0) return callback(null, true);
       if (corsOrigins.includes(origin)) return callback(null, true);
       callback(new Error('Not allowed by CORS'));
