@@ -1,9 +1,16 @@
 import axios, { AxiosError } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 
-// يجب أن ينتهي الرابط بـ /api (مثل الويب: /api/auth/login)
-export const API_URL = 'https://quran-tracking-api.onrender.com/api';
-const SERVER_ROOT = 'https://quran-tracking-api.onrender.com';
+const DEFAULT_API = 'https://quran-tracking-api.onrender.com/api';
+const DEFAULT_ROOT = 'https://quran-tracking-api.onrender.com';
+
+export const API_URL =
+  (Constants.expoConfig?.extra?.apiUrl as string | undefined)?.trim() || DEFAULT_API;
+const SERVER_ROOT =
+  (Constants.expoConfig?.extra?.serverRoot as string | undefined)?.trim() || DEFAULT_ROOT;
+
+const REQUEST_TIMEOUT_MS = 120000;
 
 function normalizeApiBase(url: string): string {
   const trimmed = url.trim().replace(/\/$/, '');
@@ -12,7 +19,7 @@ function normalizeApiBase(url: string): string {
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 90000, // Render free tier: أول طلب قد يستغرق دقيقة
+  timeout: REQUEST_TIMEOUT_MS,
 });
 
 api.interceptors.request.use(async (config) => {
@@ -21,7 +28,6 @@ api.interceptors.request.use(async (config) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
 
-  // تجاوز الرابط فقط في وضع التطوير (تجنب عنوان محفوظ خاطئ في APK)
   if (__DEV__) {
     const savedUrl = await AsyncStorage.getItem('apiUrl');
     if (savedUrl && savedUrl.trim() !== '') {
@@ -32,17 +38,93 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-/** إيقاظ خادم Render قبل تسجيل الدخول */
-export async function wakeServer(): Promise<void> {
+type ApiError = Error & {
+  code?: string;
+  response?: { status: number; data?: { message?: string } };
+};
+
+async function requestJson<T>(
+  path: string,
+  options: RequestInit & { base?: string } = {}
+): Promise<{ data: T }> {
+  const base = (options.base ?? API_URL).replace(/\/$/, '');
+  const url = `${base}${path.startsWith('/') ? path : `/${path}`}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   try {
-    await axios.get(`${SERVER_ROOT}/`, { timeout: 90000 });
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...(options.headers as Record<string, string>),
+      },
+    });
+
+    const text = await res.text();
+    let data: T & { message?: string } = {} as T;
+    try {
+      data = text ? JSON.parse(text) : ({} as T);
+    } catch {
+      data = { message: text } as T & { message?: string };
+    }
+
+    if (!res.ok) {
+      const err: ApiError = new Error(
+        (data as { message?: string }).message || `HTTP ${res.status}`
+      );
+      err.response = { status: res.status, data: data as { message?: string } };
+      throw err;
+    }
+
+    return { data };
+  } catch (error: unknown) {
+    const err = error as ApiError;
+    if (err.name === 'AbortError') {
+      const timeoutErr: ApiError = new Error('timeout');
+      timeoutErr.code = 'ECONNABORTED';
+      throw timeoutErr;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** إيقاظ خادم Render قبل تسجيل الدخول */
+export async function wakeServer(): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${SERVER_ROOT}/`, { signal: controller.signal });
+      return res.ok;
+    } finally {
+      clearTimeout(timer);
+    }
   } catch {
-    // حتى لو فشل التحقق، قد يكون الخادم قد استيقظ
+    return false;
+  }
+}
+
+/** فحص الاتصال (للشاشة أو التشخيص) */
+export async function checkServerConnection(): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(API_URL, { signal: controller.signal });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
 function isNetworkError(error: unknown): boolean {
-  const err = error as AxiosError;
+  const err = error as AxiosError | ApiError;
   return !err.response;
 }
 
@@ -51,16 +133,22 @@ async function sleep(ms: number) {
 }
 
 export const authAPI = {
-  login: async (data: { username: string; password: string }) => {
+  login: async (credentials: { username: string; password: string }) => {
     await wakeServer();
     let lastError: unknown;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        return await api.post('/auth/login', data);
+        return await requestJson<{
+          success: boolean;
+          data: { token: string; _id: string; username: string; fullName: string; role: string };
+        }>('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify(credentials),
+        });
       } catch (error) {
         lastError = error;
         if (!isNetworkError(error) || attempt === 1) throw error;
-        await sleep(2500);
+        await sleep(3000);
         await wakeServer();
       }
     }

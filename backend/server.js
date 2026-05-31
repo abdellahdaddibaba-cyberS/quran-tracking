@@ -5,9 +5,6 @@ const cors = require('cors');
 const { connectDB } = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 
-// الاتصال بقاعدة البيانات (Sequelize)
-connectDB();
-
 const app = express();
 
 // ─── Middleware ───────────────────────────────────────────────────
@@ -77,10 +74,15 @@ function getLocalIpAddress() {
 
 const networkIp = getLocalIpAddress();
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 الخادم يعمل على جميع الشبكات على المنفذ ${PORT}`);
-  console.log(`🔗 محلياً: http://localhost:${PORT}`);
-  console.log(`🔗 للشبكة: http://${networkIp}:${PORT}`);
-});
+async function startServer() {
+  await connectDB();
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 الخادم يعمل على جميع الشبكات على المنفذ ${PORT}`);
+    console.log(`🔗 محلياً: http://localhost:${PORT}`);
+    console.log(`🔗 للشبكة: http://${networkIp}:${PORT}`);
+  });
+}
+
+startServer();
 
 // ✅ System launched and migrated to PostgreSQL

@@ -1,9 +1,9 @@
 import { useAppTheme } from '../context/ThemeContext';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, TextInput, TouchableOpacity, Text, Image, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
-import { authAPI } from '../services/api';
+import { authAPI, checkServerConnection } from '../services/api';
 import { Lock, User as UserIcon } from 'lucide-react-native';
 
 export default function LoginScreen() {
@@ -13,8 +13,13 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const { login } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    checkServerConnection().then(setServerOnline);
+  }, []);
 
   const handleLogin = async () => {
     setErrorMessage('');
@@ -79,6 +84,14 @@ export default function LoginScreen() {
           </View>
           <Text style={styles.title}>مدرسة النور القرآنية</Text>
           <Text style={styles.subtitle}>بوابة أولياء الأمور لمتابعة التحصيل اليومي</Text>
+          {serverOnline === true && (
+            <Text style={{ color: '#22c55e', fontSize: 12, marginTop: 8 }}>● الخادم متصل</Text>
+          )}
+          {serverOnline === false && (
+            <Text style={{ color: '#f59e0b', fontSize: 12, marginTop: 8, textAlign: 'center' }}>
+              ● جاري الاتصال بالخادم... انتظر ثم حاول (أول مرة قد تستغرق دقيقة)
+            </Text>
+          )}
         </View>
 
         <View style={styles.form}>
