@@ -1,0 +1,578 @@
+import { useAppTheme } from '../../context/ThemeContext';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, Text, SectionList, ActivityIndicator, SafeAreaView, TouchableOpacity } from 'react-native';
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
+import { mobileAPI } from '../../services/api';
+import { Calendar, CheckCircle, XCircle, AlertCircle, Trophy, ChevronLeft, UserX, UserCheck, BookOpen, Activity } from 'lucide-react-native';
+
+export default function StudentDetailScreen() {
+  const { colors, theme, toggleTheme } = useAppTheme();
+  const styles = getStyles(colors, theme);
+  const { id } = useLocalSearchParams();
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    fetchTracking();
+  }, [id]);
+
+  const fetchTracking = async () => {
+    try {
+      const res = await mobileAPI.getTracking(id as string);
+      
+      // Group records by week (starting on Saturday)
+      const records = res.data.data.tracking || [];
+      const groups: Record<string, any[]> = {};
+      
+      records.forEach((record: any) => {
+        const d = new Date(record.date);
+        const day = d.getDay(); // Sunday is 0, Saturday is 6
+        const diff = day; // Distance from Sunday
+        
+        const weekStart = new Date(d);
+        weekStart.setDate(d.getDate() - diff);
+        
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 5); // Sunday to Friday (6 days)
+        
+        const weekLabel = `من ${weekStart.toLocaleDateString('ar-DZ', { month: 'short', day: 'numeric' })} إلى ${weekEnd.toLocaleDateString('ar-DZ', { month: 'short', day: 'numeric' })}`;
+        
+        if (!groups[weekLabel]) groups[weekLabel] = [];
+        groups[weekLabel].push(record);
+      });
+      
+      const sections = Object.keys(groups).map(key => ({
+        title: key,
+        data: groups[key]
+      }));
+
+      setData({ ...res.data.data, sections });
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#22c55e" />
+      </View>
+    );
+  }
+
+  const renderItem = ({ item }: { item: any }) => (
+    <View style={styles.trackingCard}>
+      <View style={styles.dateRow}>
+        <Text style={styles.dateText}>{new Date(item.date).toLocaleDateString('ar-DZ', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
+        <Calendar size={16} color="#94a3b8" />
+      </View>
+
+      <View style={styles.statsRow}>
+        <View style={styles.mainStat}>
+          <Text style={styles.pagesMemorized}>{item.pagesMemorized}</Text>
+          <Text style={styles.statLabel}>صفحات منجزة</Text>
+        </View>
+        <View style={styles.divider} />
+        <View style={styles.mainStat}>
+          <Text style={styles.pagesRequired}>{item.pagesRequired}</Text>
+          <Text style={styles.statLabel}>المطلوب</Text>
+        </View>
+      </View>
+
+      <View style={styles.statusRow}>
+        <View style={[styles.badge, item.attendance === 'present' ? styles.badgeSuccess : styles.badgeDanger]}>
+          {item.attendance === 'present' ? (
+            <CheckCircle size={14} color="#22c55e" />
+          ) : (
+            <XCircle size={14} color="#ef4444" />
+          )}
+          <Text style={[styles.badgeText, item.attendance === 'present' ? styles.textSuccess : styles.textDanger]}>
+            {item.attendance === 'present' ? 'حاضر' : 'غائب'}
+          </Text>
+        </View>
+        
+        {item.isSurahCompleted && (
+          <View style={[styles.badge, styles.badgeGold]}>
+            <CheckCircle size={14} color="#eab308" />
+            <Text style={[styles.badgeText, styles.textGold]}>تم ختم السورة</Text>
+          </View>
+        )}
+      </View>
+
+      {item.notes ? (
+        <View style={styles.notesBox}>
+          <AlertCircle size={14} color="#64748b" />
+          <Text style={styles.notesText}>{item.notes}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+
+  const renderSummary = () => {
+    const tracking = data?.tracking || [];
+    const totalPages = tracking.reduce((sum: number, r: any) => sum + (r.pagesMemorized || 0), 0);
+    const avgPages = tracking.length > 0 ? (totalPages / tracking.length).toFixed(1) : 0;
+    const absences = tracking.filter((r: any) => r.attendance === 'absent');
+    const attendanceRate = tracking.length > 0 
+      ? Math.round((tracking.filter((r: any) => r.attendance === 'present').length / tracking.length) * 100) 
+      : 0;
+
+    // Get last 7 records for the chart
+    const last7 = [...tracking].slice(0, 7).reverse();
+
+    return (
+      <View style={styles.summaryContainer}>
+        <View style={styles.statsGrid}>
+          <View style={[styles.statBox, { borderTopColor: colors.danger, borderTopWidth: 3 }]}>
+            <UserX size={20} color={colors.danger} style={{ marginBottom: 8 }} />
+            <Text style={[styles.statValue, { color: colors.danger }]}>{absences.length}</Text>
+            <Text style={styles.statLabel}>أيام الغياب</Text>
+          </View>
+          <View style={[styles.statBox, { borderTopColor: colors.success, borderTopWidth: 3 }]}>
+            <UserCheck size={20} color={colors.success} style={{ marginBottom: 8 }} />
+            <Text style={styles.statValue}>{attendanceRate}%</Text>
+            <Text style={styles.statLabel}>نسبة الحضور</Text>
+          </View>
+          <View style={[styles.statBox, { borderTopColor: colors.primary, borderTopWidth: 3 }]}>
+            <BookOpen size={20} color={colors.primary} style={{ marginBottom: 8 }} />
+            <Text style={[styles.statValue, { color: colors.primary }]}>{avgPages}</Text>
+            <Text style={styles.statLabel}>معدل الحفظ</Text>
+          </View>
+        </View>
+
+        {absences.length > 0 && (
+          <View style={styles.absenceSection}>
+            <View style={styles.absenceHeader}>
+              <AlertCircle size={18} color="#ef4444" />
+              <Text style={styles.absenceTitle}>تواريخ الغياب المسجلة:</Text>
+            </View>
+            <View style={styles.absenceDaysList}>
+              {absences.slice(0, 5).map((r: any, i: number) => (
+                <View key={i} style={styles.absenceDayItem}>
+                  <Text style={styles.absenceDayText}>
+                    {new Date(r.date).toLocaleDateString('ar-DZ', { day: 'numeric', month: 'long', weekday: 'short' })}
+                  </Text>
+                  <XCircle size={12} color="#ef4444" />
+                </View>
+              ))}
+              {absences.length > 5 && (
+                <Text style={styles.moreAbsences}>... وأيام أخرى</Text>
+              )}
+            </View>
+          </View>
+        )}
+
+        <View style={styles.chartSection}>
+          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <Activity size={18} color={colors.primary} />
+            <Text style={styles.chartTitle}>نشاط آخر 7 أيام</Text>
+          </View>
+          <View style={styles.chartContainer}>
+            {last7.map((r, i) => {
+              const height = Math.min((r.pagesMemorized / (r.pagesRequired || 5)) * 60, 60);
+              const isSuccess = (r.pagesMemorized >= r.pagesRequired || r.isSurahCompleted) && r.attendance === 'present';
+              return (
+                <View key={i} style={styles.chartBarWrap}>
+                  <View style={[styles.chartBar, { height: Math.max(height, 4), backgroundColor: isSuccess ? colors.success : colors.danger }]} />
+                  <Text style={styles.chartDay}>{new Date(r.date).toLocaleDateString('ar-DZ', { weekday: 'short' })}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <Stack.Screen options={{ title: data?.student?.name || 'تفاصيل التحصيل', headerShown: false }} />
+      
+      <View style={styles.stickyHeader}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <ChevronLeft size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.stickyTitle}>{data?.student?.name}</Text>
+        <TouchableOpacity 
+          onPress={() => router.push(`/student/prizes/${id}` as any)} 
+          style={styles.prizesHeaderBtn}
+        >
+          <Trophy size={22} color={colors.gold} />
+          <Text style={styles.prizesHeaderText}>الجوائز</Text>
+        </TouchableOpacity>
+      </View>
+
+      <SectionList
+        sections={data?.sections || []}
+        renderItem={renderItem}
+        renderSectionHeader={({ section: { title, data } }) => {
+          // Calculate weekly stats
+          const totalPages = data.reduce((sum: number, item: any) => sum + (item.pagesMemorized || 0), 0);
+          const presentDays = data.filter((item: any) => item.attendance === 'present').length;
+          
+          return (
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{title}</Text>
+              <View style={styles.weeklyStats}>
+                <Text style={styles.weeklyStatText}>إجمالي الحفظ: {totalPages} صفحات</Text>
+                <Text style={styles.weeklyStatText}>الحضور: {presentDays} أيام</Text>
+              </View>
+            </View>
+          );
+        }}
+        keyExtractor={(item) => item._id.toString()}
+        contentContainerStyle={styles.list}
+        stickySectionHeadersEnabled={false}
+        ListHeaderComponent={
+          <View>
+            {renderSummary()}
+
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>سجل المتابعة الأسبوعية</Text>
+              <Text style={styles.headerSubtitle}>ملخص أداء الطالب</Text>
+            </View>
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={styles.emptyText}>لا توجد سجلات متابعة بعد</Text>
+          </View>
+        }
+      />
+    </SafeAreaView>
+  );
+}
+
+const getStyles = (colors: any, theme: string) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+  },
+  list: {
+    padding: 20,
+  },
+  header: {
+    marginBottom: 20,
+    alignItems: 'flex-end',
+  },
+
+  headerTitle: {
+    color: colors.text,
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+  headerSubtitle: {
+    color: colors.textMuted,
+    fontSize: 14,
+    marginTop: 4,
+  },
+  sectionHeader: {
+    backgroundColor: colors.successBg,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.2)',
+    alignItems: 'flex-end',
+  },
+  sectionTitle: {
+    color: colors.success,
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  weeklyStats: {
+    flexDirection: 'row-reverse',
+    gap: 16,
+  },
+  weeklyStatText: {
+    color: colors.textMuted,
+    fontSize: 13,
+  },
+  trackingCard: {
+    backgroundColor: colors.surfaceTrans,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  dateText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  statsRow: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  mainStat: {
+    alignItems: 'center',
+  },
+  pagesMemorized: {
+    color: colors.success,
+    fontSize: 32,
+    fontWeight: '900',
+  },
+  pagesRequired: {
+    color: colors.textSecondary,
+    fontSize: 32,
+    fontWeight: '900',
+  },
+  statLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 4,
+  },
+  divider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.border,
+  },
+  statusRow: {
+    flexDirection: 'row-reverse',
+    gap: 8,
+    marginBottom: 12,
+  },
+  badge: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 6,
+  },
+  badgeSuccess: {
+    backgroundColor: colors.successBg,
+  },
+  badgeDanger: {
+    backgroundColor: colors.dangerBg,
+  },
+  badgeGold: {
+    backgroundColor: colors.goldBg,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  textSuccess: { color: colors.success },
+  textDanger: { color: colors.danger },
+  textGold: { color: colors.gold },
+  notesBox: {
+    flexDirection: 'row-reverse',
+    backgroundColor: colors.surfaceTrans,
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+    alignItems: 'flex-start',
+  },
+  notesText: {
+    flex: 1,
+    color: colors.textSecondary,
+    fontSize: 13,
+    textAlign: 'right',
+    lineHeight: 18,
+  },
+  empty: {
+    alignItems: 'center',
+    marginTop: 50,
+  },
+  emptyText: {
+    color: colors.textMuted,
+    fontSize: 16,
+  },
+  stickyHeader: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    padding: 20,
+    paddingTop: 40,
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceTrans,
+  },
+  backBtn: {
+    padding: 8,
+  },
+  stickyTitle: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'right',
+    marginRight: 12,
+  },
+  prizesHeaderBtn: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(251, 191, 36, 0.1)',
+    borderRadius: 12,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(251, 191, 36, 0.3)',
+  },
+  prizesHeaderText: {
+    color: colors.gold,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  summaryContainer: {
+    backgroundColor: theme === 'dark' ? 'rgba(30, 41, 59, 0.7)' : '#ffffff',
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: theme === 'dark' ? '#000' : colors.textMuted,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  statsGrid: {
+    flexDirection: 'row-reverse',
+    gap: 12,
+    marginBottom: 24,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: colors.background,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: colors.textMuted,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: colors.surfaceTrans,
+  },
+  statValue: {
+    color: colors.text,
+    fontSize: 22,
+    fontWeight: '900',
+  },
+
+  statSub: {
+    color: colors.textMuted,
+    fontSize: 10,
+  },
+  miniProgress: {
+    width: '100%',
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+    marginTop: 8,
+  },
+  miniProgressBar: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  chartSection: {
+    marginTop: 8,
+  },
+  chartTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'right',
+  },
+  chartContainer: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    height: 80,
+    paddingHorizontal: 10,
+  },
+  chartBarWrap: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  chartBar: {
+    width: 12,
+    borderRadius: 6,
+  },
+  chartDay: {
+    color: colors.textMuted,
+    fontSize: 10,
+  },
+  absenceAlert: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    backgroundColor: colors.dangerBg,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+  },
+  absenceAlertText: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: 'bold',
+    flex: 1,
+    textAlign: 'right',
+  },
+  absenceSection: {
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.dangerBg,
+  },
+  absenceHeader: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  absenceTitle: {
+    color: colors.danger,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  absenceDaysList: {
+    gap: 8,
+  },
+  absenceDayItem: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
+    padding: 8,
+    borderRadius: 8,
+  },
+  absenceDayText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+  },
+  moreAbsences: {
+    color: colors.textMuted,
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+});
