@@ -38,6 +38,10 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: true
   },
+  pushToken: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   isActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: true

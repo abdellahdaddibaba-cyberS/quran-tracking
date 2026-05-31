@@ -132,4 +132,22 @@ const getLoginLogs = async (req, res) => {
   }
 };
 
-module.exports = { login, getMe, getLoginLogs, updateProfile };
+/**
+ * حفظ رمز إشعارات الهاتف (Expo Push Token)
+ */
+const savePushToken = async (req, res) => {
+  try {
+    const { pushToken } = req.body;
+    const user = await User.findByPk(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'المستخدم غير موجود' });
+    }
+    user.pushToken = pushToken;
+    await user.save();
+    res.json({ success: true, message: 'تم حفظ رمز الإشعارات بنجاح' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { login, getMe, getLoginLogs, updateProfile, savePushToken };

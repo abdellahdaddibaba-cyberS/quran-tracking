@@ -33,6 +33,58 @@ const bulkInsertTracking = async (req, res) => {
       updateOnDuplicate: ['pagesRequired', 'pagesMemorized', 'notes', 'attendance', 'isLate', 'individualSession', 'isSurahCompleted', 'updatedAt'],
     });
 
+    // إرسال الإشعارات لأولياء الأمور
+    try {
+      const { sendPushNotification } = require('../utils/notification');
+      const User = require('../models/User');
+      
+      const studentIds = processedRecords.map(r => r.studentId);
+      const students = await Student.findAll({
+        where: { _id: studentIds },
+        include: [{
+          model: User,
+          as: 'parent',
+          attributes: ['_id', 'pushToken']
+        }]
+      });
+
+      const studentMap = {};
+      students.forEach(s => {
+        studentMap[s._id] = s;
+      });
+
+      for (const record of processedRecords) {
+        const student = studentMap[record.studentId];
+        if (student && student.parent && student.parent.pushToken) {
+          let title = `متابعة التحصيل اليومي لـ ${student.name}`;
+          let body = '';
+
+          if (record.attendance === 'absent') {
+            body = `تنبيه: تم تسجيل غياب ${student.name} اليوم عن الحلقة.`;
+          } else if (record.attendance === 'excused') {
+            body = `تنبيه: تم تسجيل غياب ${student.name} اليوم بعذر عن الحلقة.`;
+          } else {
+            if (record.isSurahCompleted) {
+              body = `🎉 تهانينا! لقد تم تسجيل حضور ${student.name} وحفظ ${record.pagesMemorized} صفحات، وأكمل حفظ سورة اليوم! 🌟`;
+            } else if (record.pagesMemorized > 0) {
+              body = `تم تسجيل حضور ${student.name} وحفظه لـ ${record.pagesMemorized} صفحات بنجاح اليوم.`;
+            } else {
+              body = `تم تسجيل حضور ${student.name} في الحلقة اليوم.`;
+            }
+          }
+
+          // إرسال الإشعار لولي الأمر
+          sendPushNotification([student.parent.pushToken], title, body, {
+            studentId: student._id,
+            type: 'daily_tracking',
+            date: record.date
+          }).catch(err => console.error('Failed to send tracking push notification:', err));
+        }
+      }
+    } catch (notifError) {
+      console.error('Error triggering parent push notifications:', notifError);
+    }
+
     res.status(201).json({
       success: true,
       message: `تم حفظ ${records.length} سجل بنجاح`,
