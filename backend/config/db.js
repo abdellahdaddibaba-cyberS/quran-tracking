@@ -3,6 +3,8 @@ const { Sequelize } = require('sequelize');
 /**
  * تهيئة Sequelize للاتصال بقاعدة بيانات PostgreSQL
  */
+const isProduction = process.env.NODE_ENV === 'production';
+
 const sequelize = new Sequelize(
   String(process.env.PG_DB),
   String(process.env.PG_USER),
@@ -11,13 +13,14 @@ const sequelize = new Sequelize(
     host: String(process.env.PG_HOST),
     port: process.env.PG_PORT,
     dialect: 'postgres',
-    logging: process.env.NODE_ENV === 'development' ? console.log : false, // تفعيل عرض استعلامات SQL في بيئة التطوير فقط
-    pool: {
-      max: 15,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
-    }
+    logging: false,
+    dialectOptions: isProduction ? {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false
+      }
+    } : {},
+    pool: { max: 5, min: 0, acquire: 30000, idle: 10000 }
   }
 );
 
