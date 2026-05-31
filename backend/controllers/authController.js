@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const LoginLog = require('../models/LoginLog');
 const jwt = require('jsonwebtoken');
+const { Expo } = require('expo-server-sdk');
 
 /**
  * توليد توكن JWT
@@ -130,12 +131,25 @@ const getLoginLogs = async (req, res) => {
 const savePushToken = async (req, res) => {
   try {
     const { pushToken } = req.body;
+
+    if (!pushToken || typeof pushToken !== 'string') {
+      return res.status(400).json({ success: false, message: 'رمز الإشعارات مطلوب' });
+    }
+
+    const trimmed = pushToken.trim();
+    if (!Expo.isExpoPushToken(trimmed)) {
+      return res.status(400).json({ success: false, message: 'رمز إشعارات إكسبو غير صالح' });
+    }
+
     const user = await User.findByPk(req.user._id);
     if (!user) {
       return res.status(404).json({ success: false, message: 'المستخدم غير موجود' });
     }
-    user.pushToken = pushToken;
-    await user.save();
+
+    user.pushToken = trimmed;
+    await user.save({ fields: ['pushToken'] });
+
+    console.log(`✅ pushToken saved for parent ${user.fullName} (${user._id})`);
     res.json({ success: true, message: 'تم حفظ رمز الإشعارات بنجاح' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

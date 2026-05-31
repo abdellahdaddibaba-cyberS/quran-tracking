@@ -40,13 +40,16 @@ const connectDB = async () => {
     require('../models/Prize');
     require('../models/LoginLog');
     
-    // التطوير: تحديث الجداول تلقائياً. الإنتاج: إنشاء فقط (استخدم migrations للتغييرات)
-    const syncOptions = isProduction ? {} : { alter: true };
+    // المزامنة: بدون alter افتراضياً (أكثر أماناً). لتفعيل alter في التطوير: PG_SYNC_ALTER=true
+    const useAlter = !isProduction && (process.env.PG_SYNC_ALTER === 'true' || process.env.PG_SYNC_ALTER === '1');
+    const syncOptions = useAlter ? { alter: true } : {};
     await sequelize.sync(syncOptions);
     console.log(
       isProduction
         ? '✅ تم مزامنة الجداول (وضع الإنتاج — بدون alter)'
-        : '✅ تم مزامنة جميع الجداول بنجاح (وضع التطوير — alter)'
+        : useAlter
+          ? '✅ تم مزامنة الجداول (وضع التطوير — alter)'
+          : '✅ تم مزامنة الجداول (وضع التطوير — بدون alter)'
     );
     
     // التأكد من وجود الفهارس الهامة لتحسين الأداء

@@ -49,6 +49,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const res = await authAPI.getMe();
         if (res.data?.success && res.data.data) {
           const profile = profileFromPayload(res.data.data);
+          if (profile.role !== 'parent') {
+            await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+            setUser(null);
+            return;
+          }
           await AsyncStorage.setItem(USER_KEY, JSON.stringify(profile));
           setUser(profile);
         }

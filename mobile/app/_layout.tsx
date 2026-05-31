@@ -2,13 +2,20 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
 import 'react-native-reanimated';
+import '../services/notificationService';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { AppThemeProvider } from '../context/ThemeContext';
 import { useAuthRedirect } from '../hooks/use-auth-redirect';
+import { useNotificationNavigation } from '../hooks/use-notification-navigation';
+import { useAppUpdates } from '../hooks/use-app-updates';
+import { usePushNotifications } from '../hooks/use-push-notifications';
 
 function RootNavigator() {
   const { loading } = useAuth();
   useAuthRedirect();
+  useNotificationNavigation();
+  useAppUpdates();
+  usePushNotifications();
 
   if (loading) {
     return (

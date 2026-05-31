@@ -13,6 +13,11 @@
     },
     "android": {
       "package": "com.qurancenter.tracking",
+      "permissions": [
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/square logo.png",
         "backgroundColor": "#ffffff"
@@ -37,6 +42,15 @@
             "image": "./assets/images/Logo.png",
             "backgroundColor": "#0f172a"
           }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/square logo.png",
+          "color": "#22c55e",
+          "defaultChannel": "default",
+          "enableBackgroundRemoteNotifications": true
         }
       ],
       "expo-font"

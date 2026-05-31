@@ -2,6 +2,26 @@ const User = require('../models/User');
 const Student = require('../models/Student');
 const { sequelize } = require('../config/db');
 
+const ALLOWED_ROLES = ['admin', 'teacher', 'parent'];
+const CREATE_FIELDS = ['username', 'password', 'fullName', 'role', 'phoneNumber', 'isActive'];
+const UPDATE_FIELDS = ['username', 'password', 'fullName', 'role', 'phoneNumber', 'isActive'];
+
+function pickFields(body, fields) {
+  const result = {};
+  for (const key of fields) {
+    if (body[key] !== undefined) {
+      result[key] = body[key];
+    }
+  }
+  return result;
+}
+
+function validateRole(role) {
+  if (role && !ALLOWED_ROLES.includes(role)) {
+    throw new Error(`الدور غير صالح. الأدوار المسموحة: ${ALLOWED_ROLES.join(', ')}`);
+  }
+}
+
 /**
  * جلب جميع المستخدمين (مع إمكانية الفلترة حسب الدور)
  */
@@ -9,13 +29,16 @@ const getUsers = async (req, res) => {
   try {
     const where = {};
     if (req.query.role) {
+      if (!ALLOWED_ROLES.includes(req.query.role)) {
+        return res.status(400).json({ success: false, message: 'دور غير صالح للفلترة' });
+      }
       where.role = req.query.role;
     }
 
     const users = await User.findAll({
       where,
       attributes: { exclude: ['password'] },
-      order: [['fullName', 'ASC']]
+      order: [['fullName', 'ASC']],
     });
 
     res.json({ success: true, count: users.length, data: users });
@@ -29,7 +52,17 @@ const getUsers = async (req, res) => {
  */
 const createUser = async (req, res) => {
   try {
-    const user = await User.create(req.body);
+    const payload = pickFields(req.body, CREATE_FIELDS);
+    validateRole(payload.role);
+
+    if (!payload.username || !payload.password || !payload.fullName) {
+      return res.status(400).json({
+        success: false,
+        message: 'اسم المستخدم وكلمة المرور والاسم الكامل مطلوبة',
+      });
+    }
+
+    const user = await User.create(payload);
     const { password, ...userWithoutPassword } = user.toJSON();
     res.status(201).json({ success: true, data: userWithoutPassword });
   } catch (error) {
@@ -47,7 +80,14 @@ const updateUser = async (req, res) => {
       return res.status(404).json({ success: false, message: 'المستخدم غير موجود' });
     }
 
-    await user.update(req.body);
+    const payload = pickFields(req.body, UPDATE_FIELDS);
+    validateRole(payload.role);
+
+    if (Object.keys(payload).length === 0) {
+      return res.status(400).json({ success: false, message: 'لا توجد حقول صالحة للتحديث' });
+    }
+
+    await user.update(payload);
     const { password, ...userWithoutPassword } = user.toJSON();
     res.json({ success: true, data: userWithoutPassword });
   } catch (error) {
@@ -66,13 +106,12 @@ const deleteUser = async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({ success: false, message: 'المستخدم غير موجود' });
     }
-    
-    // Set parentId to null for all students associated with this parent
+
     await Student.update(
       { parentId: null },
       { where: { parentId: req.params.id }, transaction }
     );
-    
+
     await user.destroy({ transaction });
     await transaction.commit();
     res.json({ success: true, message: 'تم حذف المستخدم بنجاح' });

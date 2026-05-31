@@ -8,7 +8,24 @@ const errorHandler = require('./middleware/errorHandler');
 const app = express();
 
 // ─── Middleware ───────────────────────────────────────────────────
-app.use(cors());
+const corsOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      // تطبيقات الموبايل و Postman لا ترسل Origin
+      if (!origin) return callback(null, true);
+      if (process.env.NODE_ENV !== 'production') return callback(null, true);
+      if (corsOrigins.length === 0) return callback(null, true);
+      if (corsOrigins.includes(origin)) return callback(null, true);
+      callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

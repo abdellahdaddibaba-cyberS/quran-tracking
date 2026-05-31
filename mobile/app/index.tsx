@@ -4,7 +4,6 @@ import { StyleSheet, View, Text, FlatList, TouchableOpacity, SafeAreaView, Activ
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { mobileAPI } from '../services/api';
-import { setupNotifications } from '../services/notificationService';
 import { Users, ChevronLeft, LogOut, BookOpen, Star, Settings, Sun, Moon, Award } from 'lucide-react-native';
 
 const LEVEL_TRANSLATIONS: { [key: string]: string } = {
@@ -26,7 +25,6 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!authLoading && user) {
       fetchStudents();
-      setupNotifications();
     }
   }, [user, authLoading]);
 

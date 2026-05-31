@@ -1,4 +1,4 @@
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
@@ -17,9 +17,23 @@ function normalizeApiBase(url: string): string {
   return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
 }
 
+async function resolveBaseUrl(): Promise<string> {
+  if (__DEV__) {
+    const savedUrl = await AsyncStorage.getItem('apiUrl');
+    if (savedUrl?.trim()) {
+      return normalizeApiBase(savedUrl);
+    }
+  }
+  return API_URL;
+}
+
 const api = axios.create({
   baseURL: API_URL,
   timeout: REQUEST_TIMEOUT_MS,
+  headers: {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  },
 });
 
 api.interceptors.request.use(async (config) => {
@@ -27,70 +41,33 @@ api.interceptors.request.use(async (config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-
-  if (__DEV__) {
-    const savedUrl = await AsyncStorage.getItem('apiUrl');
-    if (savedUrl && savedUrl.trim() !== '') {
-      config.baseURL = normalizeApiBase(savedUrl);
-    }
-  }
-
+  config.baseURL = await resolveBaseUrl();
   return config;
 });
 
-type ApiError = Error & {
-  code?: string;
-  response?: { status: number; data?: { message?: string } };
-};
+function isNetworkError(error: unknown): boolean {
+  const err = error as AxiosError;
+  return !err.response;
+}
 
-async function requestJson<T>(
-  path: string,
-  options: RequestInit & { base?: string } = {}
-): Promise<{ data: T }> {
-  const base = (options.base ?? API_URL).replace(/\/$/, '');
-  const url = `${base}${path.startsWith('/') ? path : `/${path}`}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-  try {
-    const res = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        ...(options.headers as Record<string, string>),
-      },
-    });
-
-    const text = await res.text();
-    let data: T & { message?: string } = {} as T;
+async function requestWithRetry<T>(config: AxiosRequestConfig, retries = 1): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      data = text ? JSON.parse(text) : ({} as T);
-    } catch {
-      data = { message: text } as T & { message?: string };
+      const response = await api.request<T>(config);
+      return response.data;
+    } catch (error) {
+      lastError = error;
+      if (!isNetworkError(error) || attempt === retries) throw error;
+      await sleep(3000);
+      await wakeServer();
     }
-
-    if (!res.ok) {
-      const err: ApiError = new Error(
-        (data as { message?: string }).message || `HTTP ${res.status}`
-      );
-      err.response = { status: res.status, data: data as { message?: string } };
-      throw err;
-    }
-
-    return { data };
-  } catch (error: unknown) {
-    const err = error as ApiError;
-    if (err.name === 'AbortError') {
-      const timeoutErr: ApiError = new Error('timeout');
-      timeoutErr.code = 'ECONNABORTED';
-      throw timeoutErr;
-    }
-    throw error;
-  } finally {
-    clearTimeout(timer);
   }
+  throw lastError;
 }
 
 /** إيقاظ خادم Render قبل تسجيل الدخول */
@@ -114,7 +91,8 @@ export async function checkServerConnection(): Promise<boolean> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30000);
   try {
-    const res = await fetch(API_URL, { signal: controller.signal });
+    const base = await resolveBaseUrl();
+    const res = await fetch(base, { signal: controller.signal });
     return res.ok;
   } catch {
     return false;
@@ -123,36 +101,18 @@ export async function checkServerConnection(): Promise<boolean> {
   }
 }
 
-function isNetworkError(error: unknown): boolean {
-  const err = error as AxiosError | ApiError;
-  return !err.response;
-}
-
-async function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export const authAPI = {
   login: async (credentials: { username: string; password: string }) => {
     await wakeServer();
-    let lastError: unknown;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        return await requestJson<{
-          success: boolean;
-          data: { token: string; _id: string; username: string; fullName: string; role: string };
-        }>('/auth/login', {
-          method: 'POST',
-          body: JSON.stringify(credentials),
-        });
-      } catch (error) {
-        lastError = error;
-        if (!isNetworkError(error) || attempt === 1) throw error;
-        await sleep(3000);
-        await wakeServer();
-      }
-    }
-    throw lastError;
+    const data = await requestWithRetry<{
+      success: boolean;
+      data: { token: string; _id: string; username: string; fullName: string; role: string };
+    }>({
+      method: 'POST',
+      url: '/auth/login',
+      data: credentials,
+    });
+    return { data };
   },
   getMe: () => api.get('/auth/me'),
   updateProfile: (data: unknown) => api.put('/auth/profile', data),
