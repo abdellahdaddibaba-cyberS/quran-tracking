@@ -25,7 +25,7 @@ async function runDiagnostics() {
   for (const p of parents) {
     const token = p.pushToken;
     const isMock = token && token.includes('mock_token');
-    const isValid = token && token.startsWith('ExponentPushToken[') && !isMock;
+    const isValid = token && (token.startsWith('ExponentPushToken[') || token.startsWith('ExpoPushToken[')) && !isMock;
     if (isValid) validTokenCount += 1;
     console.log(
       `  • ${p.fullName} (@${p.username}) → ${isValid ? '✅ رمز حقيقي' : token ? '⚠️ رمز غير صالح/تجريبي' : '❌ بدون رمز'}`

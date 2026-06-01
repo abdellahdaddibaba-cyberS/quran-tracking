@@ -63,16 +63,22 @@ export default function SettingsScreen() {
       setPushRegistered(true);
 
       const res = await mobileAPI.testPush();
-      if (res.data?.success) {
-        showStatus('success', res.data.message || 'تم إرسال إشعار تجريبي — تحقق من شريط الإشعارات');
+      if (res.status >= 400 || !res.data?.success) {
+        const hint = res.data?.message || 'فشل إرسال الإشعار التجريبي';
+        setShowFcmHelp(/FCM|Firebase|firebase|InvalidCredentials/i.test(hint));
+        showStatus('error', hint);
       } else {
-        showStatus('error', res.data?.message || 'فشل إرسال الإشعار التجريبي');
+        showStatus('success', res.data.message || 'تم إرسال إشعار تجريبي — تحقق من شريط الإشعارات');
       }
     } catch (error: any) {
-      const msg =
-        error?.response?.data?.message ||
+      const data = error?.response?.data;
+      const hint =
+        data?.message ||
+        data?.errors?.[0] ||
+        data?.receiptErrors?.[0]?.message ||
         'تعذر إرسال الإشعار. تأكد من الاتصال بالإنترنت وأعد المحاولة.';
-      showStatus('error', msg);
+      setShowFcmHelp(/FCM|Firebase|firebase|InvalidCredentials|server key/i.test(hint));
+      showStatus('error', typeof hint === 'string' ? hint : String(hint));
     } finally {
       setTestingPush(false);
     }

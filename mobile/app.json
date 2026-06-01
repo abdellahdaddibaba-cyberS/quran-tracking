@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "تحصيلي",
-    "slug": "mobile",
+    "slug": "qurantrackingannour",
     "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/square logo.png",
@@ -64,14 +64,12 @@
       "serverRoot": "https://quran-tracking-api.onrender.com",
       "router": {},
       "eas": {
-        "projectId": "f0855e0d-1932-40f4-80ed-b6ba8c189c8e"
+        "projectId": "0d9685bc-48ed-4b29-80e0-3d1493ef896d"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
-    "updates": {
-      "url": "https://u.expo.dev/f0855e0d-1932-40f4-80ed-b6ba8c189c8e"
-    }
+    "owner": "abdellahdaddis-organization"
   }
 }

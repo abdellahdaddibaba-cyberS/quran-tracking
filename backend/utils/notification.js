@@ -76,6 +76,35 @@ async function checkReceipts(tickets, tokens) {
   return receiptErrors;
 }
 
+/** ترجمة أخطاء Expo/FCM إلى رسائل مفهومة */
+function formatPushErrors(errors = [], receiptErrors = []) {
+  const parts = [];
+
+  for (const err of errors) {
+    const text = typeof err === 'string' ? err : err?.message || String(err);
+    if (text === 'no_valid_tokens') {
+      parts.push('رمز الإشعار غير صالح — اضغط «اختبار الإشعار» مجدداً لإعادة التسجيل');
+    } else if (/FCM|fcm|Firebase|InvalidCredentials|server key/i.test(text)) {
+      parts.push('مفتاح FCM V1 غير مرفوع أو غير صحيح في expo.dev → Credentials → Android');
+    } else if (/DeviceNotRegistered/i.test(text)) {
+      parts.push('الجهاز غير مسجّل — أعد تثبيت التطبيق أو سجّل الإشعارات مجدداً');
+    } else {
+      parts.push(text);
+    }
+  }
+
+  for (const rec of receiptErrors) {
+    const msg = rec?.message || rec?.details?.error || '';
+    if (/FCM|InvalidCredentials|MismatchSenderId/i.test(msg)) {
+      parts.push('FCM: تحقق أن google-services.json و FCM V1 في expo.dev من نفس مشروع Firebase');
+    } else if (msg) {
+      parts.push(msg);
+    }
+  }
+
+  return [...new Set(parts.filter(Boolean))];
+}
+
 /**
  * إرسال إشعارات الدفع لهواتف أولياء الأمور
  */
@@ -142,4 +171,4 @@ const sendPushNotification = async (tokens, title, body, data = {}) => {
   return { sent, errors, receiptErrors };
 };
 
-module.exports = { sendPushNotification };
+module.exports = { sendPushNotification, formatPushErrors };

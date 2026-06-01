@@ -3,7 +3,7 @@ const Student = require('../models/Student');
 const DailyTracking = require('../models/DailyTracking');
 const Halaqa = require('../models/Halaqa');
 const User = require('../models/User');
-const { sendPushNotification } = require('../utils/notification');
+const { sendPushNotification, formatPushErrors } = require('../utils/notification');
 
 /**
  * جلب أبناء ولي الأمر المسجل دخوله حالياً
@@ -132,12 +132,29 @@ const testPushNotification = async (req, res) => {
       { type: 'test', studentId: '' }
     );
 
+    const details = formatPushErrors(result.errors, result.receiptErrors);
+
     if (result.sent === 0) {
+      const hint = details.length > 0
+        ? details.join(' — ')
+        : 'تعذر إرسال الإشعار — تحقق من FCM V1 في expo.dev';
       return res.status(502).json({
         success: false,
-        message: 'تعذر إرسال الإشعار',
+        message: hint,
         errors: result.errors,
         receiptErrors: result.receiptErrors,
+      });
+    }
+
+    if (result.receiptErrors?.length > 0) {
+      const hint = formatPushErrors([], result.receiptErrors).join(' — ');
+      return res.json({
+        success: true,
+        message: `تم قبول الإشعار لكن التسليم قد يفشل: ${hint}`,
+        data: {
+          sent: result.sent,
+          receiptErrors: result.receiptErrors,
+        },
       });
     }
 

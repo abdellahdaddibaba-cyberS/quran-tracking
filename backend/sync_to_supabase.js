@@ -174,7 +174,13 @@ async function runSync() {
           const insertColumns = columns.map(c => `"${c}"`).join(', ');
           const updateClause = columns
             .filter(col => col !== primaryKey)
-            .map(col => `"${col}" = EXCLUDED."${col}"`)
+            .map(col => {
+              // لا تمسح pushToken في السحابة إذا كان محلياً null (يُسجّل من الهاتف مباشرة)
+              if (tableName === 'users' && col === 'pushToken') {
+                return `"pushToken" = COALESCE(EXCLUDED."pushToken", "${tableName}"."pushToken")`;
+              }
+              return `"${col}" = EXCLUDED."${col}"`;
+            })
             .join(', ');
 
           const batchSize = 100;
@@ -234,10 +240,14 @@ const args = process.argv.slice(2);
 const isDaemon = args.includes('--daemon') || args.includes('-d');
 const intervalMinutes = parseInt(process.env.SYNC_INTERVAL_MINUTES || '5', 10);
 
-if (isDaemon) {
-  console.log(`🚀 تم بدء المزامنة في وضع التشغيل المستمر (Daemon Mode) كل ${intervalMinutes} دقائق.`);
-  runSync();
-  setInterval(runSync, intervalMinutes * 60 * 1000);
-} else {
-  runSync().then(() => process.exit(0));
+module.exports = { runSync, TABLES_TO_SYNC };
+
+if (require.main === module) {
+  if (isDaemon) {
+    console.log(`🚀 تم بدء المزامنة في وضع التشغيل المستمر (Daemon Mode) كل ${intervalMinutes} دقائق.`);
+    runSync();
+    setInterval(runSync, intervalMinutes * 60 * 1000);
+  } else {
+    runSync().then(() => process.exit(0));
+  }
 }
