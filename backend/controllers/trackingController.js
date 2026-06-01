@@ -5,6 +5,59 @@ const User = require('../models/User');
 const { sendPushNotification } = require('../utils/notification');
 const { syncPushTokensFromSupabase } = require('../utils/syncPushTokens');
 
+function normalizeDateOnly(date) {
+  if (!date) return '';
+  if (typeof date === 'string') return date.slice(0, 10);
+  if (date instanceof Date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return String(date).slice(0, 10);
+}
+
+function trackingRecordKey(studentId, date) {
+  return `${Number(studentId)}-${normalizeDateOnly(date)}`;
+}
+
+/** حقول تؤثر على نص الإشعار — إذا لم تتغير لا نُعيد الإرسال */
+function trackingDataChanged(existing, incoming) {
+  return (
+    Number(existing.pagesMemorized) !== Number(incoming.pagesMemorized) ||
+    (existing.attendance || 'present') !== (incoming.attendance || 'present') ||
+    Boolean(existing.isLate) !== Boolean(incoming.isLate) ||
+    Boolean(existing.isSurahCompleted) !== Boolean(incoming.isSurahCompleted) ||
+    String(existing.notes || '') !== String(incoming.notes || '')
+  );
+}
+
+/**
+ * الإدخال اليومي يحفظ كل أسبوع دفعة واحدة — نُرسل إشعاراً فقط للسجلات الجديدة أو المعدّلة.
+ */
+async function filterRecordsNeedingNotification(processedRecords) {
+  if (!processedRecords.length) return [];
+
+  const existingRows = await DailyTracking.findAll({
+    where: {
+      [Op.or]: processedRecords.map((r) => ({
+        studentId: r.studentId,
+        date: normalizeDateOnly(r.date),
+      })),
+    },
+  });
+
+  const existingByKey = new Map(
+    existingRows.map((row) => [trackingRecordKey(row.studentId, row.date), row])
+  );
+
+  return processedRecords.filter((incoming) => {
+    const existing = existingByKey.get(trackingRecordKey(incoming.studentId, incoming.date));
+    if (!existing) return true;
+    return trackingDataChanged(existing, incoming);
+  });
+}
+
 async function sendParentNotificationsForRecords(processedRecords) {
   const summary = {
     sent: 0,
@@ -97,13 +150,19 @@ const bulkInsertTracking = async (req, res) => {
       isSurahCompleted: record.isSurahCompleted || false,
     }));
 
+    const recordsToNotify = await filterRecordsNeedingNotification(processedRecords);
+
     const result = await DailyTracking.bulkCreate(processedRecords, {
       updateOnDuplicate: ['pagesRequired', 'pagesMemorized', 'notes', 'attendance', 'isLate', 'individualSession', 'isSurahCompleted', 'updatedAt'],
     });
 
-    let notifications = { sent: 0, skipped: [], errors: [] };
+    let notifications = { sent: 0, skipped: [], errors: [], unchanged: processedRecords.length - recordsToNotify.length };
     try {
-      notifications = await sendParentNotificationsForRecords(processedRecords);
+      notifications = await sendParentNotificationsForRecords(recordsToNotify);
+      notifications.unchanged = processedRecords.length - recordsToNotify.length;
+      if (notifications.unchanged > 0) {
+        console.log(`ℹ️ تخطي ${notifications.unchanged} إشعار — السجلات لم تتغير`);
+      }
       if (notifications.sent > 0) {
         console.log(`📲 تم إرسال ${notifications.sent} إشعار بعد حفظ التحصيل`);
       }
