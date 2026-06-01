@@ -1,7 +1,13 @@
 node_modules/
 .env
+.env.*
+!.env.example
 Supbase Sync.txt
 artifact/
 backend/scratch/
 *.log
 .DS_Store
+mobile/.expo/
+# Wrong Expo config if created at repo root (use mobile/app.json)
+/app.json
+**/google-services (*).json
