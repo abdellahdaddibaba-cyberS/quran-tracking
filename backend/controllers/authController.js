@@ -2,6 +2,7 @@ const User = require('../models/User');
 const LoginLog = require('../models/LoginLog');
 const jwt = require('jsonwebtoken');
 const { Expo } = require('expo-server-sdk');
+const { Op } = require('sequelize');
 const { syncPushTokenToSupabase } = require('../utils/syncPushTokens');
 
 /**
@@ -133,8 +134,18 @@ const savePushToken = async (req, res) => {
   try {
     const { pushToken } = req.body;
 
-    if (!pushToken || typeof pushToken !== 'string') {
-      return res.status(400).json({ success: false, message: 'رمز الإشعارات مطلوب' });
+    const user = await User.findByPk(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'المستخدم غير موجود' });
+    }
+
+    if (!pushToken) {
+      // Clear token locally and in Supabase
+      user.pushToken = null;
+      await user.save({ fields: ['pushToken'] });
+      await syncPushTokenToSupabase(user._id, null);
+      console.log(`🧹 pushToken cleared for parent ${user.fullName} (${user._id})`);
+      return res.json({ success: true, message: 'تم إيقاف الإشعارات بنجاح' });
     }
 
     const trimmed = pushToken.trim();
@@ -142,10 +153,11 @@ const savePushToken = async (req, res) => {
       return res.status(400).json({ success: false, message: 'رمز إشعارات إكسبو غير صالح' });
     }
 
-    const user = await User.findByPk(req.user._id);
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'المستخدم غير موجود' });
-    }
+    // Clear this token from any other users locally to ensure uniqueness
+    await User.update(
+      { pushToken: null },
+      { where: { pushToken: trimmed, _id: { [Op.ne]: user._id } } }
+    );
 
     user.pushToken = trimmed;
     await user.save({ fields: ['pushToken'] });

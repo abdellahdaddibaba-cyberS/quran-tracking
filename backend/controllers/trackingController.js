@@ -104,15 +104,15 @@ async function sendParentNotificationsForRecords(processedRecords) {
     let body = '';
 
     if (record.attendance === 'absent') {
-      body = `تنبيه: تم تسجيل غياب ${student.name} اليوم عن الحلقة.`;
+      body = `نحيطكم علمًا بتغيب ابنكم ${student.name} اليوم.`;
     } else if (record.attendance === 'excused') {
-      body = `تنبيه: تم تسجيل غياب ${student.name} اليوم بعذر عن الحلقة.`;
+      body = `نحيطكم علمًا بتغيب ابنكم ${student.name} اليوم بعذر.`;
     } else if (record.isSurahCompleted) {
-      body = `🎉 تهانينا! لقد تم تسجيل حضور ${student.name} وحفظ ${record.pagesMemorized} صفحات، وأكمل حفظ سورة اليوم! 🌟`;
+      body = `🎉 يسرنا إبلاغكم بأن ابنكم ${student.name} أتمَّ اليوم حفظ سورة كاملة، وحفظ ${record.pagesMemorized} صفحات. بارك الله فيه وزاده توفيقًا.`;
     } else if (record.pagesMemorized > 0) {
-      body = `تم تسجيل حضور ${student.name} وحفظه لـ ${record.pagesMemorized} صفحات بنجاح اليوم.`;
+      body = `يسرنا إبلاغكم بأن ابنكم ${student.name} حفظ اليوم ${record.pagesMemorized} صفحات. نسأل الله له المزيد من التقدم والنجاح.`;
     } else {
-      body = `تم تسجيل حضور ${student.name} في الحلقة اليوم.`;
+      body = `يسرنا إبلاغكم بحضور ابنكم ${student.name} اليوم.`;
     }
 
     const result = await sendPushNotification([student.parent.pushToken], title, body, {

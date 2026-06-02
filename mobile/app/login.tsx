@@ -4,7 +4,6 @@ import {
   StyleSheet,
   View,
   TextInput,
-  TouchableOpacity,
   Text,
   Image,
   KeyboardAvoidingView,
@@ -15,10 +14,12 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
 import { Lock, User as UserIcon } from 'lucide-react-native';
+import { PrimaryButton } from '../components/ui/PrimaryButton';
+import { spacing, radius, cardShadow } from '../constants/layout';
 
 export default function LoginScreen() {
-  const { colors } = useAppTheme();
-  const styles = getStyles(colors);
+  const { colors, theme } = useAppTheme();
+  const styles = getStyles(colors, theme);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -44,26 +45,31 @@ export default function LoginScreen() {
         await login(res.data.data.token, res.data.data);
         router.replace('/');
       }
-    } catch (error: any) {
-      if (error?.code === 'SERVER_WAKE_FAILED' || error?.message === 'SERVER_WAKE_FAILED') {
+    } catch (error: unknown) {
+      const err = error as {
+        code?: string;
+        message?: string;
+        response?: { status?: number; data?: { message?: string } };
+      };
+      if (err?.code === 'SERVER_WAKE_FAILED' || err?.message === 'SERVER_WAKE_FAILED') {
         setErrorMessage('الخادم نائم — انتظر 30–60 ثانية ثم حاول تسجيل الدخول مجدداً');
-      } else if (!error.response) {
-        const code = error?.code || '';
-        if (code === 'ECONNABORTED' || error?.message?.includes('timeout')) {
+      } else if (!err.response) {
+        const code = err?.code || '';
+        if (code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
           setErrorMessage('انتهت مهلة الاتصال. يرجى المحاولة مرة أخرى.');
         } else {
           setErrorMessage(
             Platform.OS === 'web'
-              ? 'تعذر الاتصال — افتح التطبيق عبر Expo Go على الهاتف (المتصفح لا يدعم الإشعارات)'
-              : 'تعذر الاتصال بالخادم. تحقق من اتصال الإنترنت وحاول مجدداً.'
+              ? 'تعذر الاتصال — افتح التطبيق عبر Expo Go على الهاتف'
+              : 'تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مجدداً.'
           );
         }
-      } else if (error.response.status === 401) {
-        setErrorMessage(error.response.data?.message || 'اسم المستخدم أو كلمة المرور غير صحيحة');
-      } else if (error.response.status === 404) {
-        setErrorMessage('تعذر الوصول إلى الخادم. يرجى المحاولة لاحقاً أو التواصل مع الإدارة.');
+      } else if (err.response.status === 401) {
+        setErrorMessage(err.response.data?.message || 'اسم المستخدم أو كلمة المرور غير صحيحة');
+      } else if (err.response.status === 404) {
+        setErrorMessage('تعذر الوصول إلى الخادم. يرجى المحاولة لاحقاً.');
       } else {
-        setErrorMessage(error.response.data?.message || 'حدث خطأ. يرجى المحاولة مرة أخرى.');
+        setErrorMessage(err.response.data?.message || 'حدث خطأ. يرجى المحاولة مرة أخرى.');
       }
     } finally {
       setLoading(false);
@@ -75,67 +81,62 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <View style={styles.logoWrap}>
-            <Image
-              source={require('../assets/images/Logo.png')}
-              style={styles.logo}
-            />
+            <Image source={require('../assets/images/Logo.png')} style={styles.logo} />
           </View>
           <Text style={styles.title}>مدرسة النور القرآنية</Text>
           <Text style={styles.subtitle}>بوابة أولياء الأمور لمتابعة التحصيل اليومي</Text>
         </View>
 
-        <View style={styles.form}>
+        <View style={styles.formCard}>
           {errorMessage ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{errorMessage}</Text>
+            <View style={[styles.errorBox, { borderColor: colors.danger, backgroundColor: colors.dangerBg }]}>
+              <Text style={[styles.errorText, { color: colors.danger }]}>{errorMessage}</Text>
             </View>
           ) : null}
 
-          <View style={styles.inputContainer}>
-            <UserIcon size={20} color="#64748b" style={styles.inputIcon} />
+          <View style={[styles.inputContainer, { borderColor: colors.border, backgroundColor: colors.surfaceTrans }]}>
+            <UserIcon size={20} color={colors.textMuted} style={styles.inputIcon} />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: colors.text }]}
               placeholder="اسم المستخدم"
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={colors.textMuted}
               value={username}
               onChangeText={setUsername}
               autoCapitalize="none"
+              textAlign="right"
             />
           </View>
 
-          <View style={styles.inputContainer}>
-            <Lock size={20} color="#64748b" style={styles.inputIcon} />
+          <View style={[styles.inputContainer, { borderColor: colors.border, backgroundColor: colors.surfaceTrans }]}>
+            <Lock size={20} color={colors.textMuted} style={styles.inputIcon} />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: colors.text }]}
               placeholder="كلمة المرور"
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={colors.textMuted}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
+              textAlign="right"
             />
           </View>
 
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
+          <PrimaryButton
+            label={loading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
             onPress={handleLogin}
-            disabled={loading}
-          >
-            <Text style={styles.buttonText}>
-              {loading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
-            </Text>
-          </TouchableOpacity>
+            loading={loading}
+          />
         </View>
 
-        <Text style={styles.footer}>جميع الحقوق محفوظة © 2026</Text>
+        <Text style={[styles.footer, { color: colors.textMuted }]}>جميع الحقوق محفوظة © 2026</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const getStyles = (colors: any) =>
+const getStyles = (colors: typeof import('../context/ThemeContext').Colors.light, theme: string) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -144,103 +145,80 @@ const getStyles = (colors: any) =>
     scrollContent: {
       flexGrow: 1,
       justifyContent: 'center',
-      padding: 24,
+      padding: spacing.lg,
     },
     header: {
       alignItems: 'center',
-      marginBottom: 48,
+      marginBottom: spacing.xl,
     },
     logoWrap: {
-      backgroundColor: '#ffffff',
-      width: 120,
-      height: 120,
-      borderRadius: 60,
+      backgroundColor: theme === 'dark' ? colors.card : '#ffffff',
+      width: 112,
+      height: 112,
+      borderRadius: radius.xl,
       justifyContent: 'center',
       alignItems: 'center',
-      marginBottom: 20,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.15,
-      shadowRadius: 16,
-      elevation: 8,
-      overflow: 'hidden',
+      marginBottom: spacing.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...cardShadow(theme as 'light' | 'dark'),
     },
     logo: {
-      width: 110,
-      height: 110,
+      width: 96,
+      height: 96,
       resizeMode: 'contain',
     },
     title: {
-      fontSize: 24,
-      fontWeight: 'bold',
+      fontSize: 22,
+      fontWeight: '800',
       color: colors.text,
       textAlign: 'center',
     },
     subtitle: {
-      fontSize: 16,
+      fontSize: 15,
       color: colors.textMuted,
-      marginTop: 4,
+      marginTop: spacing.xs,
       textAlign: 'center',
+      lineHeight: 24,
+      paddingHorizontal: spacing.md,
     },
-    form: {
-      gap: 16,
+    formCard: {
+      backgroundColor: colors.card,
+      borderRadius: radius.xl,
+      padding: spacing.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: spacing.md,
+      ...cardShadow(theme as 'light' | 'dark'),
     },
     errorBox: {
-      backgroundColor: 'rgba(239, 68, 68, 0.1)',
-      padding: 12,
-      borderRadius: 8,
+      padding: spacing.md,
+      borderRadius: radius.md,
       borderWidth: 1,
-      borderColor: 'rgba(239, 68, 68, 0.3)',
     },
     errorText: {
-      color: '#ef4444',
       textAlign: 'center',
       fontSize: 14,
+      lineHeight: 22,
     },
     inputContainer: {
       flexDirection: 'row-reverse',
       alignItems: 'center',
-      backgroundColor: colors.surfaceTrans,
-      borderRadius: 12,
+      borderRadius: radius.md,
       borderWidth: 1,
-      borderColor: colors.border,
-      paddingHorizontal: 16,
+      paddingHorizontal: spacing.md,
     },
     inputIcon: {
-      marginLeft: 12,
+      marginLeft: spacing.md,
     },
     input: {
       flex: 1,
-      height: 56,
-      color: colors.text,
+      height: 52,
       fontSize: 16,
-      textAlign: 'right',
-    },
-    button: {
-      backgroundColor: colors.success,
-      height: 56,
-      borderRadius: 12,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginTop: 8,
-      shadowColor: colors.success,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-    buttonDisabled: {
-      opacity: 0.6,
-    },
-    buttonText: {
-      color: '#ffffff',
-      fontSize: 18,
-      fontWeight: 'bold',
     },
     footer: {
       textAlign: 'center',
-      color: '#475569',
       fontSize: 12,
-      marginTop: 48,
+      marginTop: spacing.xl,
     },
   });

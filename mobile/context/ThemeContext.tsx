@@ -3,43 +3,49 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const Colors = {
   light: {
-    background: '#f0f4f8',       // خلفية رمادية فاتحة واضحة
-    surface: '#ffffff',           // بطاقات بيضاء
-    surfaceAlt: '#e8edf2',        // بطاقات بديلة
-    border: '#c8d3e0',            // حدود واضحة
-    text: '#1a1a2e',              // نص أسود داكن واضح
-    textMuted: '#4a5568',         // نص رمادي متوسط مقروء
-    textSecondary: '#2d3748',     // نص ثانوي داكن
-    primary: '#2563eb',           // أزرق أغمق للوضوح
-    success: '#16a34a',           // أخضر داكن
-    danger: '#dc2626',            // أحمر داكن
-    warning: '#d97706',           // برتقالي داكن
-    gold: '#b45309',              // ذهبي داكن
+    background: '#f1f5f9',
+    surface: '#ffffff',
+    card: '#ffffff',
+    surfaceAlt: '#e8edf2',
+    border: '#dbe4ef',
+    text: '#0f172a',
+    textMuted: '#64748b',
+    textSecondary: '#334155',
+    primary: '#1d4ed8',
+    success: '#059669',
+    danger: '#dc2626',
+    warning: '#d97706',
+    gold: '#b45309',
     goldBg: 'rgba(180, 83, 9, 0.12)',
-    successBg: 'rgba(22, 163, 74, 0.12)',
-    dangerBg: 'rgba(220, 38, 38, 0.12)',
-    surfaceTrans: '#e2e8f0',      // خلفية البطاقات الشفافة - رمادي واضح
-    surfaceTransHover: '#cbd5e1',  // عند التمرير
+    successBg: 'rgba(5, 150, 105, 0.1)',
+    dangerBg: 'rgba(220, 38, 38, 0.1)',
+    primaryBg: 'rgba(29, 78, 216, 0.1)',
+    surfaceTrans: '#f8fafc',
+    surfaceTransHover: '#e2e8f0',
+    headerGradient: ['#ecfdf5', '#f0f9ff'] as readonly [string, string],
   },
   dark: {
-    background: '#0f172a',
+    background: '#0b1220',
     surface: '#1e293b',
+    card: '#162032',
     surfaceAlt: '#334155',
-    border: 'rgba(255,255,255,0.1)',
+    border: 'rgba(148, 163, 184, 0.18)',
     text: '#f8fafc',
     textMuted: '#94a3b8',
     textSecondary: '#cbd5e1',
-    primary: '#3b82f6',
-    success: '#22c55e',
-    danger: '#ef4444',
-    warning: '#f59e0b',
-    gold: '#eab308',
-    goldBg: 'rgba(234, 179, 8, 0.1)',
-    successBg: 'rgba(34, 197, 94, 0.1)',
-    dangerBg: 'rgba(239, 68, 68, 0.1)',
-    surfaceTrans: 'rgba(255, 255, 255, 0.05)',
-    surfaceTransHover: 'rgba(255, 255, 255, 0.08)',
-  }
+    primary: '#60a5fa',
+    success: '#34d399',
+    danger: '#f87171',
+    warning: '#fbbf24',
+    gold: '#facc15',
+    goldBg: 'rgba(250, 204, 21, 0.12)',
+    successBg: 'rgba(52, 211, 153, 0.12)',
+    dangerBg: 'rgba(248, 113, 113, 0.12)',
+    primaryBg: 'rgba(96, 165, 250, 0.12)',
+    surfaceTrans: 'rgba(255, 255, 255, 0.06)',
+    surfaceTransHover: 'rgba(255, 255, 255, 0.1)',
+    headerGradient: ['#0f172a', '#134e4a'] as readonly [string, string],
+  },
 };
 
 type ThemeContextType = {

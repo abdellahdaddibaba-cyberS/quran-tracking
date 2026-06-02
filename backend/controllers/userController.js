@@ -121,4 +121,38 @@ const deleteUser = async (req, res) => {
   }
 };
 
-module.exports = { getUsers, createUser, updateUser, deleteUser };
+/**
+ * جلب جميع الملاحظات والشكاوى (للأدمن)
+ */
+const getFeedbacks = async (req, res) => {
+  try {
+    const Feedback = require('../models/Feedback');
+    const User = require('../models/User');
+    
+    const feedbacks = await Feedback.findAll({
+      order: [['createdAt', 'DESC']],
+    });
+
+    const userIds = [...new Set(feedbacks.map(f => f.userId))];
+    const users = await User.findAll({
+      where: { _id: userIds },
+      attributes: ['_id', 'fullName', 'username', 'phoneNumber']
+    });
+
+    const userMap = new Map(users.map(u => [u._id, u]));
+
+    const data = feedbacks.map(f => {
+      const u = userMap.get(f.userId);
+      return {
+        ...f.toJSON(),
+        user: u ? u.toJSON() : { fullName: 'مستخدم محذوف', username: '', phoneNumber: '' }
+      };
+    });
+
+    res.json({ success: true, count: data.length, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { getUsers, createUser, updateUser, deleteUser, getFeedbacks };

@@ -29,7 +29,9 @@ const TABLES_TO_SYNC = [
   { name: 'halaqat', primaryKey: '_id' },
   { name: 'students', primaryKey: '_id' },
   { name: 'daily_trackings', primaryKey: '_id' },
-  { name: 'prizes', primaryKey: 'id' } // حقل المعرف هنا هو id وليس _id
+  { name: 'prizes', primaryKey: 'id' },
+  { name: 'feedbacks', primaryKey: '_id' },
+  { name: 'swimming_schedules', primaryKey: '_id' }
 ];
 
 /**
@@ -99,14 +101,34 @@ async function runSync() {
     await supabaseClient.connect();
     console.log('✅ تم الاتصال بقاعدة بيانات Supabase بنجاح.');
 
-    // التأكد من وجود الفهارس الهامة لتحسين الأداء في Supabase
+    // التأكد من وجود الجداول والفهارس الهامة لتحسين الأداء في Supabase
     try {
+      await supabaseClient.query(`
+        CREATE TABLE IF NOT EXISTS feedbacks (
+          "_id" SERIAL PRIMARY KEY,
+          "userId" INTEGER NOT NULL,
+          "type" VARCHAR(255) NOT NULL,
+          "message" TEXT NOT NULL,
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL
+        );
+      `);
+      await supabaseClient.query(`
+        CREATE TABLE IF NOT EXISTS swimming_schedules (
+          "_id" SERIAL PRIMARY KEY,
+          "studentId" INTEGER NOT NULL,
+          "date" DATE NOT NULL,
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+          UNIQUE ("studentId", "date")
+        );
+      `);
       await supabaseClient.query('CREATE INDEX IF NOT EXISTS "students_halaqaId" ON "students" ("halaqaId");');
       await supabaseClient.query('CREATE INDEX IF NOT EXISTS "students_parentId" ON "students" ("parentId");');
       await supabaseClient.query('CREATE INDEX IF NOT EXISTS "prizes_studentId" ON "prizes" ("studentId");');
-      console.log('⚡ تم التأكد من تهيئة الفهارس (Indexes) في Supabase بنجاح.');
+      console.log('⚡ تم التأكد من تهيئة الجداول والفهارس في Supabase بنجاح.');
     } catch (indexErr) {
-      console.warn('⚠️ تنبيه: تعذر إنشاء الفهارس في Supabase:', indexErr.message);
+      console.warn('⚠️ تنبيه: تعذر تهيئة الجداول أو الفهارس في Supabase:', indexErr.message);
     }
 
     // 1️⃣ مرحلة الحذف (Delete Phase) بالترتيب العكسي لتفادي قيود المفاتيح الخارجية

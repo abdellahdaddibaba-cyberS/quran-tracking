@@ -26,6 +26,18 @@ async function syncPushTokensFromSupabase() {
 
     let synced = 0;
     for (const row of rows) {
+      // 1. Match by username first (safest as username is unique and constant)
+      const [countByUsername] = await User.update(
+        { pushToken: row.pushToken },
+        { where: { username: row.username, role: 'parent' } }
+      );
+
+      if (countByUsername > 0) {
+        synced += 1;
+        continue;
+      }
+
+      // 2. Fallback to ID match
       const [countById] = await User.update(
         { pushToken: row.pushToken },
         { where: { _id: row._id, role: 'parent' } }
@@ -33,15 +45,7 @@ async function syncPushTokensFromSupabase() {
 
       if (countById > 0) {
         synced += 1;
-        continue;
       }
-
-      const [countByUsername] = await User.update(
-        { pushToken: row.pushToken },
-        { where: { username: row.username, role: 'parent' } }
-      );
-
-      if (countByUsername > 0) synced += 1;
     }
 
     if (synced > 0) {
@@ -62,7 +66,7 @@ async function syncPushTokensFromSupabase() {
  */
 async function syncPushTokenToSupabase(userId, pushToken) {
   const supabaseUrl = process.env.SUPABASE_DB_URL;
-  if (!supabaseUrl || !pushToken) return;
+  if (!supabaseUrl) return;
 
   const client = new Client({
     connectionString: supabaseUrl,
@@ -71,10 +75,24 @@ async function syncPushTokenToSupabase(userId, pushToken) {
 
   try {
     await client.connect();
-    await client.query(
-      `UPDATE users SET "pushToken" = $1, "updatedAt" = NOW() WHERE "_id" = $2 AND role = 'parent'`,
-      [pushToken, userId]
-    );
+    if (!pushToken) {
+      // Clear token on Supabase
+      await client.query(
+        `UPDATE users SET "pushToken" = NULL, "updatedAt" = NOW() WHERE "_id" = $1 AND role = 'parent'`,
+        [userId]
+      );
+    } else {
+      // Clear this token from any other users on Supabase to keep it unique per device
+      await client.query(
+        `UPDATE users SET "pushToken" = NULL WHERE "pushToken" = $1 AND "_id" != $2`,
+        [pushToken, userId]
+      );
+      // Update the current user's token
+      await client.query(
+        `UPDATE users SET "pushToken" = $1, "updatedAt" = NOW() WHERE "_id" = $2 AND role = 'parent'`,
+        [pushToken, userId]
+      );
+    }
   } catch (error) {
     console.error('❌ فشل رفع pushToken إلى Supabase:', error.message);
   } finally {

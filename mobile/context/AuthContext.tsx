@@ -80,6 +80,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
+    try {
+      await authAPI.savePushToken('');
+    } catch (e) {
+      console.warn('Failed to clear push token on server during logout:', e);
+    }
     await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
     setUser(null);
   };

@@ -19,7 +19,24 @@ const getMyStudents = async (req, res) => {
       }]
     });
 
-    res.json({ success: true, count: students.length, data: students });
+    // تحقق من السباحة لليوم الحالي
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    const swimmingSchedules = await require('../models/SwimmingSchedule').findAll({
+      where: {
+        date: todayStr,
+        studentId: { [Op.in]: students.map(s => s._id) }
+      },
+      attributes: ['studentId']
+    });
+    const scheduledIds = new Set(swimmingSchedules.map(s => s.studentId));
+
+    const studentsWithSwimming = students.map(student => {
+      const studentJson = student.toJSON();
+      studentJson.hasSwimmingToday = scheduledIds.has(student._id);
+      return studentJson;
+    });
+
+    res.json({ success: true, count: students.length, data: studentsWithSwimming });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -52,7 +69,19 @@ const getStudentTracking = async (req, res) => {
       order: [['date', 'DESC']]
     });
 
-    res.json({ success: true, data: { student, tracking, prizes } });
+    // تحقق إن كان الطالب لديه سباحة اليوم
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    const swimming = await require('../models/SwimmingSchedule').findOne({
+      where: {
+        studentId,
+        date: todayStr
+      }
+    });
+
+    const studentJson = student.toJSON();
+    studentJson.hasSwimmingToday = !!swimming;
+
+    res.json({ success: true, data: { student: studentJson, tracking, prizes } });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -171,4 +200,35 @@ const testPushNotification = async (req, res) => {
   }
 };
 
-module.exports = { getMyStudents, getStudentTracking, getWeeklyReport, testPushNotification };
+/**
+ * إرسال ملاحظات وشكاوى ولي الأمر
+ */
+const submitFeedback = async (req, res) => {
+  try {
+    const { type, message } = req.body;
+    
+    if (!type || !message) {
+      return res.status(400).json({
+        success: false,
+        message: 'نوع الملاحظة ومحتوى الرسالة مطلوبان',
+      });
+    }
+
+    const Feedback = require('../models/Feedback');
+    const feedback = await Feedback.create({
+      userId: req.user._id,
+      type,
+      message,
+    });
+
+    res.json({
+      success: true,
+      message: 'تم إرسال ملاحظتك بنجاح، شكراً لك!',
+      data: feedback,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { getMyStudents, getStudentTracking, getWeeklyReport, testPushNotification, submitFeedback };

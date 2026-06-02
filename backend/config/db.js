@@ -39,6 +39,8 @@ const connectDB = async () => {
     require('../models/DailyTracking');
     require('../models/Prize');
     require('../models/LoginLog');
+    require('../models/Feedback');
+    require('../models/SwimmingSchedule');
     
     // المزامنة: بدون alter افتراضياً (أكثر أماناً). لتفعيل alter في التطوير: PG_SYNC_ALTER=true
     const useAlter = !isProduction && (process.env.PG_SYNC_ALTER === 'true' || process.env.PG_SYNC_ALTER === '1');

@@ -1,11 +1,24 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
+import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 const DEFAULT_API = 'https://quran-tracking-api.onrender.com/api';
 const DEFAULT_ROOT = 'https://quran-tracking-api.onrender.com';
 
-export const API_URL =
-  (Constants.expoConfig?.extra?.apiUrl as string | undefined)?.trim() || DEFAULT_API;
+const getInitialApiUrl = (): string => {
+  if (__DEV__) {
+    // In development mode, point to the local backend server
+    const hostUri = Constants.expoConfig?.hostUri;
+    if (hostUri) {
+      const ip = hostUri.split(':')[0];
+      return `http://${ip}:5000/api`;
+    }
+    return Platform.OS === 'android' ? 'http://10.0.2.2:5000/api' : 'http://localhost:5000/api';
+  }
+  return (Constants.expoConfig?.extra?.apiUrl as string | undefined)?.trim() || DEFAULT_API;
+};
+
+export const API_URL = getInitialApiUrl();
 
 const SERVER_ROOT =
   (Constants.expoConfig?.extra?.serverRoot as string | undefined)?.trim() || DEFAULT_ROOT;
@@ -150,6 +163,7 @@ export const mobileAPI = {
     api.post('/mobile/test-push', undefined, {
       validateStatus: (status) => status < 600,
     }),
+  submitFeedback: (data: { type: string; message: string }) => api.post('/mobile/feedback', data),
 };
 
 export default api;

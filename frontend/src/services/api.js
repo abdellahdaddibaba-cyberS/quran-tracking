@@ -47,6 +47,9 @@ export const studentsAPI = {
   update:       (id, data)   => api.put(`/students/${id}`, data),
   delete:       (id)         => api.delete(`/students/${id}`),
   getByHalaqa:  (halaqaId)   => api.get('/students', { params: { halaqaId } }),
+  getSwimming:        (date)       => api.get('/students/swimming', { params: { date } }),
+  getWeeklySwimming:  (weekStart)  => api.get('/students/swimming/weekly', { params: { weekStart } }),
+  saveSwimming:       (data)       => api.post('/students/swimming', data),
 };
 
 // ─── Tracking API ─────────────────────────────────────────────────
@@ -87,6 +90,7 @@ export const usersAPI = {
   create: (data)      => api.post('/users', data),
   update: (id, data)  => api.put(`/users/${id}`, data),
   delete: (id)        => api.delete(`/users/${id}`),
+  getFeedback: ()     => api.get('/users/feedback'),
 };
 
 export const mobileAPI = {

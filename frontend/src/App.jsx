@@ -16,6 +16,9 @@ import IndividualSessionReport from './pages/IndividualSessionReport';
 import StudentAwards from './pages/StudentAwards';
 import LoginReport from './pages/LoginReport';
 import Users from './pages/Users';
+import FeedbackReport from './pages/FeedbackReport';
+import SwimmingManagement from './pages/SwimmingManagement';
+import WeeklySwimming from './pages/WeeklySwimming';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
@@ -67,19 +70,22 @@ export default function App() {
         }} />
         <main className="main-content">
           <Routes>
-            <Route path="/"            element={<Home user={user} />} />
-            <Route path="/halaqat"     element={<HalaqaManagement />} />
-            <Route path="/students"    element={<Students />} />
-            <Route path="/attendance"  element={<Attendance />} />
+            <Route path="/" element={<Home user={user} />} />
+            <Route path="/halaqat" element={<HalaqaManagement />} />
+            <Route path="/students" element={<Students />} />
+            <Route path="/attendance" element={<Attendance />} />
             <Route path="/daily-input" element={<DailyInput />} />
-            <Route path="/history"          element={<StudentHistory />} />
-            <Route path="/weekly-report"     element={<WeeklyReport user={user} />} />
-            <Route path="/low-pages"         element={<LowPageReport />} />
+            <Route path="/history" element={<StudentHistory />} />
+            <Route path="/weekly-report" element={<WeeklyReport user={user} />} />
+            <Route path="/low-pages" element={<LowPageReport />} />
             <Route path="/individual-sessions" element={<IndividualSessionReport />} />
-            <Route path="/awards"            element={<StudentAwards />} />
-            <Route path="/login-logs"        element={<LoginReport />} />
-            <Route path="/ai"               element={<AISuggestion />} />
-            <Route path="/users"            element={<Users />} />
+            <Route path="/awards" element={<StudentAwards />} />
+            <Route path="/login-logs" element={<LoginReport />} />
+            <Route path="/ai" element={<AISuggestion />} />
+            <Route path="/users" element={<Users />} />
+            <Route path="/feedback"         element={<FeedbackReport />} />
+            <Route path="/swimming"         element={<SwimmingManagement />} />
+            <Route path="/swimming/weekly"  element={<WeeklySwimming />} />
             <Route path="*"                element={<Navigate to="/" />} />
           </Routes>
         </main>
@@ -98,7 +104,7 @@ export default function App() {
             direction: 'rtl',
           },
           success: { iconTheme: { primary: '#22c55e', secondary: '#fff' } },
-          error:   { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
+          error: { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
         }}
       />
     </BrowserRouter>
