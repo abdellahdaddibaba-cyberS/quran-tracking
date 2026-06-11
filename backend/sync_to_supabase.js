@@ -31,7 +31,8 @@ const TABLES_TO_SYNC = [
   { name: 'daily_trackings', primaryKey: '_id' },
   { name: 'prizes', primaryKey: 'id' },
   { name: 'feedbacks', primaryKey: '_id' },
-  { name: 'swimming_schedules', primaryKey: '_id' }
+  { name: 'swimming_schedules', primaryKey: '_id' },
+  { name: 'login_logs', primaryKey: '_id' }
 ];
 
 /**
@@ -123,6 +124,18 @@ async function runSync() {
           UNIQUE ("studentId", "date")
         );
       `);
+      await supabaseClient.query(`
+        CREATE TABLE IF NOT EXISTS login_logs (
+          "_id" SERIAL PRIMARY KEY,
+          "username" VARCHAR(255) NOT NULL,
+          "status" VARCHAR(255) NOT NULL,
+          "ipAddress" VARCHAR(255),
+          "userAgent" TEXT,
+          "loginTime" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL
+        );
+      `);
       await supabaseClient.query('CREATE INDEX IF NOT EXISTS "students_halaqaId" ON "students" ("halaqaId");');
       await supabaseClient.query('CREATE INDEX IF NOT EXISTS "students_parentId" ON "students" ("parentId");');
       await supabaseClient.query('CREATE INDEX IF NOT EXISTS "prizes_studentId" ON "prizes" ("studentId");');
@@ -138,6 +151,11 @@ async function runSync() {
     for (const table of REVERSE_TABLES) {
       const tableName = table.name;
       const primaryKey = table.primaryKey;
+
+      if (tableName === 'feedbacks' || tableName === 'login_logs') {
+        console.log(`• الجدول "${tableName}": تم تخطي مرحلة الحذف للحفاظ على السجلات المتلقاة على السحابة.`);
+        continue;
+      }
 
       const columns = await getTableColumns(localClient, tableName);
       if (columns.length === 0) continue;

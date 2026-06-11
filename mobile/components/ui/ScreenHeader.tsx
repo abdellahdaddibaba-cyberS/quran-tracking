@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronRight } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../../context/ThemeContext';
 import { spacing, radius } from '../../constants/layout';
@@ -24,7 +24,7 @@ export function ScreenHeader({ title, subtitle, onBack, right, style }: ScreenHe
         style={[styles.backBtn, { backgroundColor: colors.surfaceTrans }]}
         hitSlop={12}
       >
-        <ChevronLeft size={22} color={colors.text} />
+        <ChevronRight size={22} color={colors.text} />
       </TouchableOpacity>
       <View style={styles.titles}>
         <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>

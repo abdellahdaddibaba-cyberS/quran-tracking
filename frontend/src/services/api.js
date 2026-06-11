@@ -47,7 +47,7 @@ export const studentsAPI = {
   update:       (id, data)   => api.put(`/students/${id}`, data),
   delete:       (id)         => api.delete(`/students/${id}`),
   getByHalaqa:  (halaqaId)   => api.get('/students', { params: { halaqaId } }),
-  getSwimming:        (date)       => api.get('/students/swimming', { params: { date } }),
+  getSwimming:        (date, auto) => api.get('/students/swimming', { params: { date, auto } }),
   getWeeklySwimming:  (weekStart)  => api.get('/students/swimming/weekly', { params: { weekStart } }),
   saveSwimming:       (data)       => api.post('/students/swimming', data),
 };
@@ -76,6 +76,7 @@ export const reportsAPI = {
   getAwardStudents: () => api.get('/reports/award-students'),
   getRecentPrizes: () => api.get('/reports/recent-prizes'),
   givePrize: (data) => api.post('/reports/give-prize', data),
+  getImprovementAwards: (date) => api.get('/reports/improvement-awards', { params: { date } }),
 };
 
 // ─── Auth & Users API ─────────────────────────────────────────────
@@ -91,6 +92,7 @@ export const usersAPI = {
   update: (id, data)  => api.put(`/users/${id}`, data),
   delete: (id)        => api.delete(`/users/${id}`),
   getFeedback: ()     => api.get('/users/feedback'),
+  getParentAccessReport: () => api.get('/users/parent-access-report'),
 };
 
 export const mobileAPI = {

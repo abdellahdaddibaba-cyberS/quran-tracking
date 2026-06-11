@@ -8,7 +8,8 @@ const {
   deleteSession,
   getAwardStudents,
   givePrize,
-  getRecentPrizes
+  getRecentPrizes,
+  getImprovementAwards
 } = require('../controllers/reportController');
 const { protect, staffOnly } = require('../middleware/authMiddleware');
 
@@ -21,6 +22,7 @@ router.get('/student-notes/:studentId', getStudentNotes);
 router.post('/delete-session', deleteSession);
 router.get('/award-students', getAwardStudents);
 router.get('/recent-prizes', getRecentPrizes);
+router.get('/improvement-awards', getImprovementAwards);
 router.post('/give-prize', givePrize);
 
 module.exports = router;

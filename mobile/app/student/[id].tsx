@@ -23,28 +23,28 @@ export default function StudentDetailScreen() {
   const fetchTracking = async () => {
     try {
       const res = await mobileAPI.getTracking(id as string);
-      
+
       // Group records by week (starting on Saturday)
       const records = res.data.data.tracking || [];
       const groups: Record<string, any[]> = {};
-      
+
       records.forEach((record: any) => {
         const d = new Date(record.date);
         const day = d.getDay(); // Sunday is 0, Saturday is 6
         const diff = day; // Distance from Sunday
-        
+
         const weekStart = new Date(d);
         weekStart.setDate(d.getDate() - diff);
-        
+
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekStart.getDate() + 5); // Sunday to Friday (6 days)
-        
+
         const weekLabel = `من ${weekStart.toLocaleDateString('ar-DZ', { month: 'short', day: 'numeric' })} إلى ${weekEnd.toLocaleDateString('ar-DZ', { month: 'short', day: 'numeric' })}`;
-        
+
         if (!groups[weekLabel]) groups[weekLabel] = [];
         groups[weekLabel].push(record);
       });
-      
+
       const sections = Object.keys(groups).map(key => ({
         title: key,
         data: groups[key]
@@ -124,8 +124,8 @@ export default function StudentDetailScreen() {
     const totalPages = tracking.reduce((sum: number, r: any) => sum + (r.pagesMemorized || 0), 0);
     const avgPages = tracking.length > 0 ? (totalPages / tracking.length).toFixed(1) : 0;
     const absences = tracking.filter((r: any) => r.attendance === 'absent');
-    const attendanceRate = tracking.length > 0 
-      ? Math.round((tracking.filter((r: any) => r.attendance === 'present').length / tracking.length) * 100) 
+    const attendanceRate = tracking.length > 0
+      ? Math.round((tracking.filter((r: any) => r.attendance === 'present').length / tracking.length) * 100)
       : 0;
 
     // Get last 7 records for the chart
@@ -179,12 +179,28 @@ export default function StudentDetailScreen() {
             <Text style={styles.chartTitle}>نشاط آخر 7 أيام</Text>
           </View>
           <View style={styles.chartContainer}>
-            {last7.map((r, i) => {
-              const height = Math.min((r.pagesMemorized / (r.pagesRequired || 5)) * 60, 60);
-              const isSuccess = (r.pagesMemorized >= r.pagesRequired || r.isSurahCompleted) && r.attendance === 'present';
+            {last7.map((r: any, i: number) => {
+              const required = r.pagesRequired || 5;
+              const memorized = r.pagesMemorized || 0;
+              const progressRatio = Math.min(memorized / required, 1);
+              const heightRatio = progressRatio * 50; // Max bar height 50
+              const isSuccess = (memorized >= required || r.isSurahCompleted) && r.attendance === 'present';
+              const isAbsent = r.attendance === 'absent';
+
+              const barColor = isAbsent
+                ? colors.textMuted
+                : isSuccess
+                  ? colors.success
+                  : colors.danger;
+
               return (
                 <View key={i} style={styles.chartBarWrap}>
-                  <View style={[styles.chartBar, { height: Math.max(height, 4), backgroundColor: isSuccess ? colors.success : colors.danger }]} />
+                  <Text style={[styles.chartBarValue, { color: barColor }]}>
+                    {isAbsent ? 'غ' : memorized}
+                  </Text>
+                  <View style={[styles.chartBarTrack, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }]}>
+                    <View style={[styles.chartBarProgress, { height: Math.max(heightRatio, 4), backgroundColor: barColor }]} />
+                  </View>
                   <Text style={styles.chartDay}>{new Date(r.date).toLocaleDateString('ar-DZ', { weekday: 'short' })}</Text>
                 </View>
               );
@@ -198,7 +214,7 @@ export default function StudentDetailScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ title: data?.student?.name || 'تفاصيل التحصيل', headerShown: false }} />
-      
+
       <ScreenHeader
         title={data?.student?.name || 'تفاصيل التحصيل'}
         subtitle="سجل الحفظ والحضور"
@@ -228,13 +244,19 @@ export default function StudentDetailScreen() {
           // Calculate weekly stats
           const totalPages = data.reduce((sum: number, item: any) => sum + (item.pagesMemorized || 0), 0);
           const presentDays = data.filter((item: any) => item.attendance === 'present').length;
-          
+
           return (
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{title}</Text>
-              <View style={styles.weeklyStats}>
-                <Text style={styles.weeklyStatText}>إجمالي الحفظ: {totalPages} صفحات</Text>
-                <Text style={styles.weeklyStatText}>الحضور: {presentDays} أيام</Text>
+              <View style={styles.weeklyStatsContainer}>
+                <View style={styles.weeklyStatBadge}>
+                  <BookOpen size={12} color={colors.textSecondary} />
+                  <Text style={styles.weeklyStatText}>الحفظ: {totalPages} ص</Text>
+                </View>
+                <View style={styles.weeklyStatBadge}>
+                  <Calendar size={12} color={colors.textSecondary} />
+                  <Text style={styles.weeklyStatText}>الحضور: {presentDays} أيام</Text>
+                </View>
               </View>
             </View>
           );
@@ -277,10 +299,9 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
     padding: 20,
   },
   header: {
-    marginBottom: 20,
+    marginBottom: 12,
     alignItems: 'flex-end',
   },
-
   headerTitle: {
     color: colors.text,
     fontSize: 22,
@@ -292,28 +313,41 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
     marginTop: 4,
   },
   sectionHeader: {
-    backgroundColor: colors.successBg,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(34, 197, 94, 0.2)',
-    alignItems: 'flex-end',
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.xs + 2,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   sectionTitle: {
-    color: colors.success,
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'right',
   },
-  weeklyStats: {
+  weeklyStatsContainer: {
     flexDirection: 'row-reverse',
-    gap: 16,
+    gap: spacing.xs,
+    alignItems: 'center',
+  },
+  weeklyStatBadge: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceTrans,
+    borderRadius: radius.md,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 4,
   },
   weeklyStatText: {
-    color: colors.textMuted,
-    fontSize: 13,
+    color: colors.textSecondary,
+    fontSize: 10,
+    fontWeight: '600',
   },
   trackingCard: {
     backgroundColor: colors.card,
@@ -503,7 +537,7 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   },
   chartTitle: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
     textAlign: 'right',
   },
@@ -511,20 +545,34 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
     flexDirection: 'row-reverse',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    height: 80,
-    paddingHorizontal: 10,
+    height: 96,
+    paddingHorizontal: spacing.sm,
+    marginTop: spacing.sm,
   },
   chartBarWrap: {
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
   },
-  chartBar: {
-    width: 12,
-    borderRadius: 6,
+  chartBarTrack: {
+    width: 14,
+    height: 50,
+    borderRadius: 7,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  chartBarProgress: {
+    width: '100%',
+    borderRadius: 7,
+  },
+  chartBarValue: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginBottom: 2,
   },
   chartDay: {
     color: colors.textMuted,
     fontSize: 10,
+    marginTop: 4,
   },
   absenceAlert: {
     flexDirection: 'row-reverse',

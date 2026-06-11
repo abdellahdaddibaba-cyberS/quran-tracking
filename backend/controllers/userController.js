@@ -126,26 +126,60 @@ const deleteUser = async (req, res) => {
  */
 const getFeedbacks = async (req, res) => {
   try {
-    const Feedback = require('../models/Feedback');
-    const User = require('../models/User');
-    
-    const feedbacks = await Feedback.findAll({
-      order: [['createdAt', 'DESC']],
-    });
+    let feedbacks = [];
+    let users = [];
 
-    const userIds = [...new Set(feedbacks.map(f => f.userId))];
-    const users = await User.findAll({
-      where: { _id: userIds },
-      attributes: ['_id', 'fullName', 'username', 'phoneNumber']
-    });
+    if (process.env.SUPABASE_DB_URL) {
+      const { Client } = require('pg');
+      const supabaseClient = new Client({
+        connectionString: process.env.SUPABASE_DB_URL,
+        ssl: {
+          rejectUnauthorized: false
+        }
+      });
+
+      await supabaseClient.connect();
+      try {
+        const feedbackRes = await supabaseClient.query(
+          `SELECT * FROM feedbacks ORDER BY "createdAt" DESC`
+        );
+        feedbacks = feedbackRes.rows;
+
+        if (feedbacks.length > 0) {
+          const userIds = [...new Set(feedbacks.map(f => f.userId))];
+          const userRes = await supabaseClient.query(
+            `SELECT _id, "fullName", username, "phoneNumber" FROM users WHERE _id = ANY($1)`,
+            [userIds]
+          );
+          users = userRes.rows;
+        }
+      } finally {
+        await supabaseClient.end().catch(() => {});
+      }
+    } else {
+      const Feedback = require('../models/Feedback');
+      const User = require('../models/User');
+      
+      const localFeedbacks = await Feedback.findAll({
+        order: [['createdAt', 'DESC']],
+      });
+      feedbacks = localFeedbacks.map(f => f.toJSON());
+
+      const userIds = [...new Set(feedbacks.map(f => f.userId))];
+      const localUsers = await User.findAll({
+        where: { _id: userIds },
+        attributes: ['_id', 'fullName', 'username', 'phoneNumber']
+      });
+      users = localUsers.map(u => u.toJSON());
+    }
 
     const userMap = new Map(users.map(u => [u._id, u]));
 
     const data = feedbacks.map(f => {
       const u = userMap.get(f.userId);
       return {
-        ...f.toJSON(),
-        user: u ? u.toJSON() : { fullName: 'مستخدم محذوف', username: '', phoneNumber: '' }
+        ...f,
+        user: u ? u : { fullName: 'مستخدم محذوف', username: '', phoneNumber: '' }
       };
     });
 
@@ -155,4 +189,135 @@ const getFeedbacks = async (req, res) => {
   }
 };
 
-module.exports = { getUsers, createUser, updateUser, deleteUser, getFeedbacks };
+/**
+ * تقرير تتبع دخول أولياء الأمور اليومي للبوابة
+ */
+const getParentAccessReport = async (req, res) => {
+  try {
+    let parents = [];
+    let students = [];
+    let logs = [];
+
+    if (process.env.SUPABASE_DB_URL) {
+      const { Client } = require('pg');
+      const supabaseClient = new Client({
+        connectionString: process.env.SUPABASE_DB_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      await supabaseClient.connect();
+      try {
+        // 1. Get parents
+        const parentRes = await supabaseClient.query(
+          `SELECT _id, "fullName", username, "phoneNumber", "isActive" FROM users WHERE role = 'parent' ORDER BY "fullName" ASC`
+        );
+        parents = parentRes.rows;
+
+        if (parents.length > 0) {
+          const parentIds = parents.map(p => p._id);
+          const usernames = parents.map(p => p.username);
+
+          // 2. Get students
+          const studentRes = await supabaseClient.query(
+            `SELECT _id, name, "parentId" FROM students WHERE "parentId" = ANY($1)`,
+            [parentIds]
+          );
+          students = studentRes.rows;
+
+          // 3. Get login logs (last 30 days)
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          
+          const logRes = await supabaseClient.query(
+            `SELECT username, "loginTime" FROM login_logs WHERE username = ANY($1) AND status = 'success' AND "loginTime" >= $2 ORDER BY "loginTime" DESC`,
+            [usernames, thirtyDaysAgo.toISOString()]
+          );
+          logs = logRes.rows;
+        }
+      } finally {
+        await supabaseClient.end().catch(() => {});
+      }
+    } else {
+      const User = require('../models/User');
+      const Student = require('../models/Student');
+      const LoginLog = require('../models/LoginLog');
+      const { Op } = require('sequelize');
+
+      const localParents = await User.findAll({
+        where: { role: 'parent' },
+        attributes: ['_id', 'fullName', 'username', 'phoneNumber', 'isActive'],
+        order: [['fullName', 'ASC']]
+      });
+      parents = localParents.map(p => p.toJSON());
+
+      if (parents.length > 0) {
+        const parentIds = parents.map(p => p._id);
+        const usernames = parents.map(p => p.username);
+
+        const localStudents = await Student.findAll({
+          where: { parentId: { [Op.in]: parentIds } },
+          attributes: ['_id', 'name', 'parentId']
+        });
+        students = localStudents.map(s => s.toJSON());
+
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const localLogs = await LoginLog.findAll({
+          where: {
+            username: { [Op.in]: usernames },
+            status: 'success',
+            loginTime: { [Op.gte]: thirtyDaysAgo }
+          },
+          attributes: ['username', 'loginTime'],
+          order: [['loginTime', 'DESC']]
+        });
+        logs = localLogs.map(l => l.toJSON());
+      }
+    }
+
+    // Group students by parentId
+    const studentsMap = new Map();
+    students.forEach(s => {
+      const pId = s.parentId;
+      if (!studentsMap.has(pId)) {
+        studentsMap.set(pId, []);
+      }
+      studentsMap.get(pId).push(s.name);
+    });
+
+    // Group login logs by username (case-insensitive and trimmed)
+    const logsMap = new Map();
+    logs.forEach(log => {
+      const user = String(log.username || '').toLowerCase().trim();
+      if (!logsMap.has(user)) {
+        logsMap.set(user, []);
+      }
+      logsMap.get(user).push(log.loginTime);
+    });
+
+    const report = parents.map(p => {
+      const parentKey = String(p.username || '').toLowerCase().trim();
+      const parentLogins = logsMap.get(parentKey) || [];
+      const parentStudents = studentsMap.get(p._id) || [];
+      const lastLogin = parentLogins.length > 0 ? parentLogins[0] : null;
+
+      return {
+        _id: p._id,
+        fullName: p.fullName,
+        username: p.username,
+        phoneNumber: p.phoneNumber,
+        isActive: p.isActive,
+        students: parentStudents,
+        logins: parentLogins,
+        lastLogin: lastLogin
+      };
+    });
+
+    res.json({ success: true, data: report });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { getUsers, createUser, updateUser, deleteUser, getFeedbacks, getParentAccessReport };

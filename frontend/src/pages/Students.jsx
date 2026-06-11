@@ -207,7 +207,7 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
 }
 
 // ─── Excel Import Modal ────────────────────────────────────────────────
-function ExcelImportModal({ halaqat, onClose, onSave }) {
+function ExcelImportModal({ halaqat, parents, onClose, onSave }) {
   const [selectedHalaqa, setSelectedHalaqa] = useState('');
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -242,12 +242,31 @@ function ExcelImportModal({ halaqat, onClose, onSave }) {
           else if (levelStr.includes('ثالث') || levelStr === '3') level = 'level3';
           else if (levelStr.includes('رابع') || levelStr === '4') level = 'level4';
 
+          const parentName = String(row['الأب'] || row['ولي الأمر'] || '').trim();
+          const parentPhone = String(row['هاتف الأب'] || row['هاتف ولي الأمر'] || row['رقم هاتف ولي الأمر'] || row['رقم الهاتف'] || row['الهاتف'] || '').trim();
+
+          let parentId = null;
+          if (parentName) {
+            const matchedParent = parents.find(p => {
+              const fullNameMatch = p.fullName.trim().toLowerCase() === parentName.toLowerCase();
+              const phoneMatch = p.phoneNumber && String(p.phoneNumber).trim() === parentName;
+              const usernameMatch = p.username.trim().toLowerCase() === parentName.toLowerCase();
+              return fullNameMatch || phoneMatch || usernameMatch;
+            });
+            if (matchedParent) {
+              parentId = matchedParent._id;
+            }
+          }
+
           return {
             name: String(row['الاسم'] || ''),
             level: level,
             startSurah: String(row['بداية السورة'] || ''),
             dailyTarget: row['القسط'] ? Number(row['القسط']) : (row['القسط اليومي'] ? Number(row['القسط اليومي']) : 1),
-            halaqaId: selectedHalaqa
+            halaqaId: selectedHalaqa,
+            parentId: parentId,
+            parentName: parentName || undefined,
+            parentPhone: parentPhone || undefined
           };
         }).filter(s => s.name && s.startSurah);
 
@@ -258,7 +277,13 @@ function ExcelImportModal({ halaqat, onClose, onSave }) {
         }
 
         const res = await studentsAPI.createBulk({ students });
-        toast.success(`تم استيراد ${res.data.count} طالب بنجاح ✅`);
+        const parentsCreatedCount = res.data.parentsCreated || 0;
+
+        if (parentsCreatedCount > 0) {
+          toast.success(`تم استيراد ${res.data.count} طالب بنجاح ✅\n(تم إنشاء ${parentsCreatedCount} حسابات أولياء أمور تلقائياً بكلمة مرور افتراضية: 123456)`, { duration: 8000 });
+        } else {
+          toast.success(`تم استيراد ${res.data.count} طالب بنجاح ✅`);
+        }
         onSave();
       } catch (err) {
         console.error(err);
@@ -272,7 +297,7 @@ function ExcelImportModal({ halaqat, onClose, onSave }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: '480px' }}>
+      <div className="modal" style={{ maxWidth: '480px' }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h2 className="modal-title">استيراد من إكسل</h2>
           <button className="modal-close" onClick={onClose}><X size={18} /></button>
@@ -308,7 +333,9 @@ function ExcelImportModal({ halaqat, onClose, onSave }) {
               - <code>الاسم</code> (إجباري)<br />
               - <code>بداية السورة</code> (إجباري)<br />
               - <code>القسط</code> (إجباري، رقم)<br />
-              - <code>المستوى</code> (اختياري - افتراضياً: الأول)
+              - <code>المستوى</code> (اختياري - افتراضياً: الأول)<br />
+              - <code>الأب</code> أو <code>ولي الأمر</code> (اختياري - لربطه أو إنشاء حساب له تلقائياً)<br />
+              - <code>رقم الهاتف</code> أو <code>هاتف ولي الأمر</code> (اختياري - لرقم هاتف ولي الأمر واسم المستخدم الخاص به)
             </div>
           </div>
           <div className="modal-footer">
@@ -498,6 +525,7 @@ export default function Students() {
       {showImportModal && (
         <ExcelImportModal
           halaqat={halaqat}
+          parents={parents}
           onClose={() => setShowImportModal(false)}
           onSave={() => { setShowImportModal(false); fetchAll(); }}
         />

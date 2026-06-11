@@ -134,6 +134,30 @@ export default function SwimmingManagement() {
     }
   };
 
+  // إعادة التوليد التلقائي حسب الإنجاز
+  const handleAutoGenerate = async () => {
+    if (!selectedDate) return;
+    setLoading(true);
+    try {
+      const res = await studentsAPI.getSwimming(selectedDate, 'true');
+      setScheduledStudentIds(new Set(res.data.data.map(id => Number(id))));
+      toast.success('تمت إعادة حساب وتوليد قائمة السباحة تلقائياً بنجاح ✅');
+    } catch (err) {
+      toast.error('فشل توليد جدول السباحة تلقائياً');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // التحقق مما إذا كان التاريخ المحدد هو يوم سبت بدءاً من الأسبوع الثاني
+  const isSelectedDateSaturday = useMemo(() => {
+    if (!selectedDate) return false;
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    return dateObj.getDay() === 6 && selectedDate >= '2026-06-27';
+  }, [selectedDate]);
+
   // تصفية الطلاب حسب اسم البحث
   const filteredStudentsByHalaqa = useMemo(() => {
     if (!search.trim()) return studentsByHalaqa;
@@ -163,15 +187,50 @@ export default function SwimmingManagement() {
           <div className="page-title-icon"><Waves size={20} /></div>
           جدول السباحة للطلبة
         </div>
-        <button
-          className="btn btn-primary btn-lg"
-          onClick={handleSave}
-          disabled={saving || !selectedDate}
-        >
-          <Save size={18} />
-          {saving ? 'جاري الحفظ...' : 'حفظ الجدول وإرسال الإشعارات'}
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          {isSelectedDateSaturday && (
+            <button
+              className="btn btn-secondary"
+              onClick={handleAutoGenerate}
+              disabled={loading || !selectedDate}
+              style={{ gap: '0.5rem', display: 'flex', alignItems: 'center' }}
+            >
+              <Waves size={16} />
+              توليد تلقائي حسب الإنجاز
+            </button>
+          )}
+          <button
+            className="btn btn-primary"
+            onClick={handleSave}
+            disabled={saving || !selectedDate}
+            style={{ gap: '0.5rem', display: 'flex', alignItems: 'center' }}
+          >
+            <Save size={16} />
+            {saving ? 'جاري الحفظ...' : 'حفظ الجدول وإرسال الإشعارات'}
+          </button>
+        </div>
       </div>
+
+      {isSelectedDateSaturday && (
+        <div style={{
+          background: 'rgba(14, 165, 233, 0.1)',
+          border: '1px solid rgba(14, 165, 233, 0.25)',
+          borderRadius: 'var(--radius-md)',
+          padding: '1rem',
+          marginBottom: '1.5rem',
+          color: '#38bdf8',
+          fontSize: '0.9rem',
+          lineHeight: '1.6',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem'
+        }}>
+          <AlertCircle size={20} style={{ flexShrink: 0 }} />
+          <div>
+            <strong>توليد تلقائي نشط:</strong> هذا التاريخ يقع في يوم السبت (الأسبوع الثاني فما فوق). يتم تحديد الطلاب تلقائياً إذا حققوا المطلوب من السبت إلى الخميس: <strong>(القسط اليومي × 6 أيام)</strong>. استظهار السور يحتسب بنصف القسط اليومي. يمكنك التعديل يدوياً بالضغط على الطلاب ثم الحفظ.
+          </div>
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <div className="form-row">

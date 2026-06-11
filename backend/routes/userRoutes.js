@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getUsers, createUser, updateUser, deleteUser, getFeedbacks } = require('../controllers/userController');
+const { getUsers, createUser, updateUser, deleteUser, getFeedbacks, getParentAccessReport } = require('../controllers/userController');
 const { protect, adminOnly } = require('../middleware/authMiddleware');
 
 // جميع مسارات المستخدمين تتطلب صلاحيات الأدمن
@@ -9,6 +9,7 @@ router.use(adminOnly);
 
 router.get('/', getUsers);
 router.get('/feedback', getFeedbacks);
+router.get('/parent-access-report', getParentAccessReport);
 router.post('/', createUser);
 router.put('/:id', updateUser);
 router.delete('/:id', deleteUser);

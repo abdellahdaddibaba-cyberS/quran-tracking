@@ -6,17 +6,30 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { mobileAPI } from '../services/api';
-import { CheckCircle, AlertCircle, MessageSquare, Send, HelpCircle } from 'lucide-react-native';
+import { CheckCircle, AlertCircle, MessageSquare, Send, HelpCircle, Lightbulb, FileText } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { spacing, radius, cardShadow } from '../constants/layout';
 
 const FEEDBACK_TYPES = [
-  { id: 'suggestion', label: 'اقتراح 💡' },
-  { id: 'bug', label: 'إبلاغ عن مشكلة ⚠️' },
-  { id: 'complaint', label: 'شكوى 📝' },
-  { id: 'other', label: 'أخرى 💬' },
+  { id: 'suggestion', label: 'اقتراح' },
+  { id: 'bug', label: 'بلاغ خطأ' },
+  { id: 'complaint', label: 'شكوى' },
+  { id: 'other', label: 'أخرى' },
 ];
+
+const getFeedbackIcon = (id: string, color: string) => {
+  switch (id) {
+    case 'suggestion':
+      return <Lightbulb size={16} color={color} />;
+    case 'bug':
+      return <AlertCircle size={16} color={color} />;
+    case 'complaint':
+      return <FileText size={16} color={color} />;
+    default:
+      return <HelpCircle size={16} color={color} />;
+  }
+};
 
 export default function FeedbackScreen() {
   const { colors, theme } = useAppTheme();
@@ -27,6 +40,7 @@ export default function FeedbackScreen() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | null; text: string }>({ type: null, text: '' });
+  const [isFocused, setIsFocused] = useState(false);
 
   const showStatus = (type: 'success' | 'error', text: string) => {
     setStatusMsg({ type, text });
@@ -125,14 +139,17 @@ export default function FeedbackScreen() {
                     }}
                     activeOpacity={0.7}
                   >
-                    <Text
-                      style={[
-                        styles.typeBtnText,
-                        { color: isSelected ? colors.primary : colors.textSecondary }
-                      ]}
-                    >
-                      {t.label}
-                    </Text>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6 }}>
+                      {getFeedbackIcon(t.id, isSelected ? colors.primary : colors.textMuted)}
+                      <Text
+                        style={[
+                          styles.typeBtnText,
+                          { color: isSelected ? colors.primary : colors.textSecondary }
+                        ]}
+                      >
+                        {t.label}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 );
               })}
@@ -142,7 +159,13 @@ export default function FeedbackScreen() {
 
             <Text style={styles.label}>رسالتك</Text>
             <TextInput
-              style={styles.messageInput}
+              style={[
+                styles.messageInput,
+                isFocused && {
+                  borderColor: colors.primary,
+                  backgroundColor: theme === 'dark' ? 'rgba(96, 165, 250, 0.05)' : 'rgba(29, 78, 216, 0.03)',
+                }
+              ]}
               value={message}
               onChangeText={setMessage}
               placeholder="اكتب هنا اقتراحاتك، أو شكواك، أو المشاكل التي تواجهها بالتفصيل..."
@@ -153,6 +176,8 @@ export default function FeedbackScreen() {
               textAlignVertical="top"
               maxLength={1000}
               editable={!loading}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
             />
             <Text style={styles.charCount}>
               {message.length} / 1000 حرف

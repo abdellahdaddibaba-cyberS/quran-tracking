@@ -70,6 +70,31 @@ const getMe = async (req, res) => {
     const user = await User.findByPk(req.user._id, {
       attributes: { exclude: ['password'] }
     });
+
+    if (user && user.role === 'parent') {
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+      const userAgent = req.headers['user-agent'];
+
+      // لتفادي تكرار السجلات بكثرة، نسجل الدخول فقط إذا لم يكن هناك سجل ناجح في آخر 15 دقيقة
+      const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+      const recentLog = await LoginLog.findOne({
+        where: {
+          username: user.username,
+          status: 'success',
+          loginTime: { [Op.gte]: fifteenMinutesAgo }
+        }
+      });
+
+      if (!recentLog) {
+        await LoginLog.create({
+          username: user.username,
+          status: 'success',
+          ipAddress: ip,
+          userAgent: userAgent
+        });
+      }
+    }
+
     res.json({ success: true, data: user });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

@@ -210,14 +210,6 @@ export async function setupNotifications(): Promise<NotificationSetupResult> {
     const saved = await saveTokenToServer(token);
     if (saved.ok) {
       console.log('✅ تم حفظ رمز الإشعارات في قاعدة البيانات');
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'تم تفعيل الإشعارات ✅',
-          body: 'سيصلك تنبيه عند تسجيل تحصيل ابنك في الحلقة',
-          sound: true,
-        },
-        trigger: null,
-      });
     } else {
       console.error('❌ تم الحصول على الرمز لكن فشل حفظه على الخادم:', saved.message);
     }

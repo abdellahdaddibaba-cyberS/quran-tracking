@@ -2,38 +2,27 @@ import { useState, useEffect, useCallback } from 'react';
 import { studentsAPI } from '../services/api';
 import { Waves, ChevronLeft, ChevronRight, Users, Calendar } from 'lucide-react';
 
-// أسماء الأيام بالعربية
-const DAY_NAMES = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-const MONTHS_AR = [
-  'يناير','فبراير','مارس','أبريل','مايو','يونيو',
-  'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'
-];
-
 function getWeekStart(date) {
-  // بداية الأسبوع = الأحد
   const d = new Date(date);
   const day = d.getDay();
   d.setDate(d.getDate() - day);
   return d.toISOString().split('T')[0];
 }
 
-function formatDate(dateStr) {
-  const d = new Date(dateStr);
-  return `${DAY_NAMES[d.getDay()]} ${d.getDate()} ${MONTHS_AR[d.getMonth()]}`;
-}
-
-function formatWeekRange(weekStart) {
-  const start = new Date(weekStart);
-  const end = new Date(weekStart);
-  end.setDate(end.getDate() + 6);
-  return `${start.getDate()} ${MONTHS_AR[start.getMonth()]} – ${end.getDate()} ${MONTHS_AR[end.getMonth()]} ${end.getFullYear()}`;
+function formatSaturdayDate(weekStart) {
+  const [y, m, d] = weekStart.split('-').map(Number);
+  const startObj = new Date(y, m - 1, d);
+  const endObj = new Date(startObj);
+  endObj.setDate(startObj.getDate() + 6);
+  return endObj.toLocaleDateString('ar-DZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 export default function WeeklySwimming() {
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
-  const [data, setData] = useState({}); // { 'YYYY-MM-DD': [student, ...] }
+  const [data, setData] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [search, setSearch] = useState('');
 
   const fetchWeek = useCallback(async (ws) => {
     setLoading(true);
@@ -67,7 +56,19 @@ export default function WeeklySwimming() {
 
   const goToThisWeek = () => setWeekStart(getWeekStart(new Date()));
 
-  const totalSwimmers = Object.values(data).reduce((acc, arr) => acc + arr.length, 0);
+  // استخرج طلاب يوم السبت فقط
+  const saturdayStudents = Object.entries(data)
+    .filter(([date]) => {
+      const [y, m, d] = date.split('-').map(Number);
+      return new Date(y, m - 1, d).getDay() === 6;
+    })
+    .flatMap(([, students]) => students);
+
+  const filteredStudents = search.trim()
+    ? saturdayStudents.filter(st => st.name.toLowerCase().includes(search.toLowerCase()))
+    : saturdayStudents;
+
+  const totalSwimmers = saturdayStudents.length;
 
   return (
     <div className="page-container">
@@ -84,7 +85,7 @@ export default function WeeklySwimming() {
           <div>
             <h2 className="page-title" style={{ margin: 0 }}>الجدول الأسبوعي للسباحة</h2>
             <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              عرض طلاب السباحة مرتّبين حسب أيام الأسبوع
+              قائمة الطلبة المعنيين بالسباحة ليوم السبت
             </p>
           </div>
         </div>
@@ -94,22 +95,22 @@ export default function WeeklySwimming() {
           display: 'flex', alignItems: 'center', gap: '0.75rem',
           background: 'var(--card)', borderRadius: 10,
           padding: '0.5rem 1rem', border: '1px solid var(--border)',
-          flexWrap: 'wrap'
+          flexWrap: 'wrap', width: '100%'
         }}>
-          <button onClick={prevWeek} className="btn-icon" title="الأسبوع السابق"
-            style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 8px', cursor: 'pointer', color: 'var(--text)' }}>
+          <button onClick={prevWeek} title="الأسبوع السابق"
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center' }}>
             <ChevronRight size={18} />
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text)', flex: 1, justifyContent: 'center' }}>
             <Calendar size={15} color="#0ea5e9" />
-            <span style={{ fontWeight: 600, minWidth: 220, textAlign: 'center' }}>
-              {formatWeekRange(weekStart)}
+            <span style={{ fontWeight: 700, textAlign: 'center', fontSize: '0.95rem' }}>
+              {formatSaturdayDate(weekStart)}
             </span>
           </div>
 
-          <button onClick={nextWeek} className="btn-icon" title="الأسبوع التالي"
-            style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 8px', cursor: 'pointer', color: 'var(--text)' }}>
+          <button onClick={nextWeek} title="الأسبوع التالي"
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center' }}>
             <ChevronLeft size={18} />
           </button>
 
@@ -117,19 +118,20 @@ export default function WeeklySwimming() {
             style={{
               background: 'rgba(14,165,233,0.1)', color: '#0ea5e9',
               border: '1px solid rgba(14,165,233,0.25)', borderRadius: 8,
-              padding: '4px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600
+              padding: '4px 14px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600
             }}>
             هذا الأسبوع
           </button>
 
           {totalSwimmers > 0 && (
             <div style={{
-              marginRight: 'auto', background: 'rgba(14,165,233,0.08)',
+              background: 'rgba(14,165,233,0.08)',
               color: '#0ea5e9', borderRadius: 20,
-              padding: '2px 12px', fontSize: '0.8rem', fontWeight: 700,
-              border: '1px solid rgba(14,165,233,0.2)'
+              padding: '3px 14px', fontSize: '0.82rem', fontWeight: 700,
+              border: '1px solid rgba(14,165,233,0.2)',
+              display: 'flex', alignItems: 'center', gap: 5
             }}>
-              <Users size={13} style={{ verticalAlign: 'middle', marginLeft: 4 }} />
+              <Users size={13} />
               {totalSwimmers} سباح
             </div>
           )}
@@ -143,97 +145,90 @@ export default function WeeklySwimming() {
         </div>
       ) : error ? (
         <div className="alert alert-danger">{error}</div>
-      ) : (
+      ) : totalSwimmers === 0 ? (
         <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))',
-          gap: '1rem',
+          textAlign: 'center', color: 'var(--text-muted)',
+          padding: '4rem', background: 'var(--card)',
+          borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
           marginTop: '1rem'
         }}>
-          {Object.entries(data).map(([date, students]) => {
-            const isToday = date === new Date().toISOString().split('T')[0];
-            const hasStudents = students.length > 0;
+          <Waves size={40} style={{ opacity: 0.25, marginBottom: '1rem', display: 'block', margin: '0 auto 1rem' }} />
+          <p style={{ margin: 0, fontSize: '1rem' }}>لا يوجد طلاب مسجلون للسباحة في هذا الأسبوع</p>
+        </div>
+      ) : (
+        <div style={{ marginTop: '1rem', background: 'var(--card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+          {/* Search bar */}
+          <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)' }}>
+            <input
+              type="text"
+              className="form-control"
+              placeholder="🔍  ابحث عن طالب..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ maxWidth: 320 }}
+            />
+          </div>
 
-            return (
-              <div key={date} style={{
-                background: 'var(--card)',
-                borderRadius: 14,
-                border: isToday
-                  ? '1.5px solid rgba(14,165,233,0.5)'
-                  : '1px solid var(--border)',
-                overflow: 'hidden',
-                boxShadow: isToday ? '0 0 0 3px rgba(14,165,233,0.08)' : undefined
-              }}>
-                {/* Day header */}
-                <div style={{
-                  padding: '0.65rem 1rem',
-                  background: hasStudents
-                    ? 'rgba(14,165,233,0.08)'
-                    : 'rgba(255,255,255,0.02)',
-                  borderBottom: '1px solid var(--border)',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                }}>
-                  <div>
-                    <span style={{
-                      fontWeight: 700, fontSize: '0.9rem',
-                      color: isToday ? '#0ea5e9' : 'var(--text)'
-                    }}>
-                      {formatDate(date)}
-                    </span>
-                    {isToday && (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+            <thead>
+              <tr style={{ background: 'rgba(14,165,233,0.08)', borderBottom: '2px solid rgba(14,165,233,0.15)' }}>
+                <th style={{ padding: '0.85rem 1rem', textAlign: 'center', fontWeight: 700, color: '#0ea5e9', width: 55 }}>#</th>
+                <th style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700, color: 'var(--text)' }}>اسم الطالب</th>
+                <th style={{ padding: '0.85rem 1rem', textAlign: 'center', fontWeight: 700, color: 'var(--text)', width: 140 }}>رقم الحلقة</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredStudents.length === 0 ? (
+                <tr>
+                  <td colSpan={3} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                    لا توجد نتائج مطابقة للبحث
+                  </td>
+                </tr>
+              ) : (
+                filteredStudents.map((st, i) => (
+                  <tr
+                    key={st._id}
+                    style={{
+                      borderBottom: i < filteredStudents.length - 1 ? '1px solid var(--border)' : 'none',
+                      transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(14,165,233,0.04)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
                       <span style={{
-                        marginRight: 6, fontSize: '0.65rem',
-                        background: '#0ea5e9', color: '#fff',
-                        borderRadius: 4, padding: '1px 5px', fontWeight: 700
-                      }}>اليوم</span>
-                    )}
-                  </div>
-                  {hasStudents && (
-                    <span style={{
-                      background: 'rgba(14,165,233,0.15)', color: '#0ea5e9',
-                      borderRadius: 20, padding: '1px 10px',
-                      fontSize: '0.75rem', fontWeight: 700
-                    }}>
-                      {students.length}
-                    </span>
-                  )}
-                </div>
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 28, height: 28, borderRadius: '50%',
+                        background: 'rgba(14,165,233,0.12)', color: '#0ea5e9',
+                        fontSize: '0.78rem', fontWeight: 700
+                      }}>
+                        {i + 1}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', fontWeight: 500, color: 'var(--text)' }}>
+                      🏊‍♂️ {st.name}
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                      {st.halaqaId || '—'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
 
-                {/* Students list */}
-                <div style={{ padding: '0.5rem' }}>
-                  {!hasStudents ? (
-                    <p style={{
-                      textAlign: 'center', color: 'var(--text-muted)',
-                      fontSize: '0.8rem', padding: '1rem 0', margin: 0
-                    }}>
-                      لا يوجد سباحون
-                    </p>
-                  ) : (
-                    <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {students.map((st, i) => (
-                        <li key={st._id} style={{
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          padding: '6px 8px', borderRadius: 8,
-                          background: 'rgba(255,255,255,0.03)',
-                          fontSize: '0.85rem', color: 'var(--text)'
-                        }}>
-                          <span style={{
-                            minWidth: 20, height: 20, borderRadius: '50%',
-                            background: 'rgba(14,165,233,0.15)', color: '#0ea5e9',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '0.7rem', fontWeight: 700
-                          }}>
-                            {i + 1}
-                          </span>
-                          <span style={{ fontWeight: 500 }}>{st.name}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {/* Footer count */}
+          {filteredStudents.length > 0 && (
+            <div style={{
+              padding: '0.6rem 1rem',
+              borderTop: '1px solid var(--border)',
+              fontSize: '0.8rem', color: 'var(--text-muted)',
+              display: 'flex', justifyContent: 'space-between'
+            }}>
+              <span>إجمالي: <strong style={{ color: '#0ea5e9' }}>{filteredStudents.length}</strong> طالب</span>
+              {search && <span>نتائج البحث عن: <strong>{search}</strong></span>}
+            </div>
+          )}
         </div>
       )}
     </div>

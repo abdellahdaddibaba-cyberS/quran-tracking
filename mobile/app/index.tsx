@@ -4,7 +4,7 @@ import { StyleSheet, View, Text, FlatList, TouchableOpacity, SafeAreaView, Activ
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { mobileAPI } from '../services/api';
-import { Users, ChevronLeft, LogOut, BookOpen, Star, Settings, Sun, Moon, Award } from 'lucide-react-native';
+import { Users, ChevronLeft, LogOut, BookOpen, Star, Settings, Sun, Moon, Award, Waves } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { spacing, radius, cardShadow } from '../constants/layout';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -134,7 +134,8 @@ export default function HomeScreen() {
               </View>
               {item.hasSwimmingToday && (
                 <View style={styles.swimmingBadge}>
-                  <Text style={styles.swimmingBadgeText}>🏊‍♂️ سباحة اليوم</Text>
+                  <Waves size={12} color="#0ea5e9" />
+                  <Text style={styles.swimmingBadgeText}>سباحة اليوم</Text>
                 </View>
               )}
             </View>
@@ -199,7 +200,7 @@ export default function HomeScreen() {
       {/* Parent Overview Dashboard Stats */}
       <View style={styles.statsRow}>
         {students.length <= 1 && (
-          <View style={[styles.statBox, cardShadow(theme), { backgroundColor: colors.surface }]}>
+          <View style={[styles.statBox, cardShadow(theme), { backgroundColor: colors.surface, borderColor: theme === 'dark' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(5, 150, 105, 0.15)' }]}>
             <View style={[styles.statBoxIcon, { backgroundColor: colors.successBg }]}>
               <BookOpen size={20} color={colors.success} />
             </View>
@@ -210,7 +211,7 @@ export default function HomeScreen() {
           </View>
         )}
 
-        <View style={[styles.statBox, cardShadow(theme), { backgroundColor: colors.surface }]}>
+        <View style={[styles.statBox, cardShadow(theme), { backgroundColor: colors.surface, borderColor: theme === 'dark' ? 'rgba(96, 165, 250, 0.15)' : 'rgba(29, 78, 216, 0.15)' }]}>
           <View style={[styles.statBoxIcon, { backgroundColor: colors.primaryBg }]}>
             <Users size={20} color={colors.primary} />
           </View>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Home, Users, BookOpen, BarChart2,
-  Brain, AlignJustify, TrendingUp, TrendingDown, Sun, Moon, UserCheck, Trophy, LogOut, History, MessageSquare, Waves
+  Brain, AlignJustify, TrendingUp, TrendingDown, Sun, Moon, UserCheck, Trophy, LogOut, History, MessageSquare, Waves, Activity
 } from 'lucide-react';
 
 const navLinks = [
@@ -20,6 +20,7 @@ const navLinks = [
   { label: 'ملخص الأسبوع', path: '/weekly-report', icon: TrendingUp, roles: ['admin', 'teacher', 'parent'] },
   { label: 'سجلات الدخول', path: '/login-logs', icon: History, roles: ['admin'] },
   { label: 'الملاحظات والشكاوى', path: '/feedback', icon: MessageSquare, roles: ['admin'] },
+  { label: 'تتبع دخول الأولياء', path: '/parent-access', icon: Activity, roles: ['admin'] },
   { label: 'المستخدمين وأولياء الأمور', path: '/users', icon: UserCheck, roles: ['admin'] },
   { label: 'الاقتراح الذكي', path: '/ai', icon: Brain, roles: ['admin', 'teacher'] },
 ];

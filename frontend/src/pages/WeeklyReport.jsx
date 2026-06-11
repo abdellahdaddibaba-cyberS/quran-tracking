@@ -240,81 +240,94 @@ export default function WeeklyReport({ user }) {
         r.alignment = { horizontal: 'center' };
       });
 
-      // ─── 2. صفحات الحلقات التفصيلية ───
+      // ─── 2. صفحة التفاصيل (جميع الحلقات) ───
+      const worksheet = workbook.addWorksheet('تفاصيل الحلقات', {
+        views: [{ rightToLeft: true, showGridLines: false }]
+      });
+
+      // 1. ترويسة الصفحة (Emerald Gradient Style)
+      worksheet.mergeCells('A1:M2');
+      const headerCell = worksheet.getCell('A1');
+      headerCell.value = 'التقرير الختامي لإنجازات التحفيظ الأسبوعية لجميع الحلقات';
+      headerCell.font = { name: 'Arial', bold: true, size: 22, color: { argb: 'FFFFFFFF' } };
+      headerCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.emerald } };
+      headerCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      worksheet.getRow(1).height = 30;
+      worksheet.getRow(2).height = 30;
+
+      // 2. بطاقة المعلومات (Info Card)
+      worksheet.mergeCells('A3:E5');
+      const infoCard = worksheet.getCell('A3');
+      infoCard.value = `📍 جميع الحلقات\n📅 الفترة: من ${startDate} إلى ${endDate}`;
+      infoCard.font = { name: 'Arial', size: 12, color: { argb: colors.textDark } };
+      infoCard.alignment = { wrapText: true, horizontal: 'right', vertical: 'middle' };
+      infoCard.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.grayBg } };
+      infoCard.border = {
+        left: { style: 'thick', color: { argb: colors.emerald } },
+        bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } }
+      };
+
+      // 3. ملخص الأداء (Stat Card)
+      worksheet.mergeCells('I3:M5');
+      const statCard = worksheet.getCell('I3');
+      statCard.value = `🎯 الإنجاز الكلي: ${totalPages} صفحة\n📈 النسبة الكلية: ${totalPct}%`;
+      statCard.font = { name: 'Arial', bold: true, size: 14, color: { argb: colors.emerald } };
+      statCard.alignment = { wrapText: true, horizontal: 'center', vertical: 'middle' };
+      statCard.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.lightEmerald } };
+      statCard.border = { outline: true, style: 'medium', color: { argb: colors.emerald } };
+
+      worksheet.addRow([]); // Spacer
+
+      // 4. أعمدة الجدول الرئيسي
+      const columns = [
+        { header: '#', key: 'idx', width: 6 },
+        { header: 'اسم الطالب', key: 'name', width: 32 },
+        { header: 'المستوى', key: 'level', width: 14 },
+        { header: 'القسط', key: 'target', width: 10 },
+        ...weekDays.map(d => ({ header: d.label, key: d.dateStr, width: 12 })),
+        { header: 'المجموع الأسبوعي', key: 'total', width: 15 },
+        { header: 'الإنجاز التراكمي', key: 'cumulative', width: 15 },
+        { header: 'النسبة', key: 'pct', width: 12 }
+      ];
+
+      // نحدد المفاتيح والعرض فقط حتى لا يقوم ExcelJS بكتابة الهيدر في الصف الأول (فوق العنوان)
+      worksheet.columns = columns.map(col => ({ key: col.key, width: col.width }));
+
+      // 5. كتابة الهيدر صراحة في الصف السابع وتنسيقه
+      const tableHeader = worksheet.getRow(7);
+      tableHeader.values = columns.map(col => col.header);
+      tableHeader.height = 35;
+      tableHeader.eachCell((cell) => {
+        cell.font = { name: 'Arial', bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF374151' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = { bottom: { style: 'thick', color: { argb: colors.gold } } };
+      });
+
+      // 6. إضافة البيانات والجماليات (Heatmap)
+      let rowIndex = 1;
       for (const halaqa of allHalaqat) {
         const halaqaStudents = allStudents.filter(s => (s.halaqaId?._id || s.halaqaId) === halaqa._id);
         if (halaqaStudents.length === 0) continue;
 
-        const worksheet = workbook.addWorksheet(halaqa.name.replace(/[/\\?*[\]:]/g, '').substring(0, 31) || 'Report', {
-          views: [{ rightToLeft: true, showGridLines: false }]
-        });
-
-        // 1. ترويسة الصفحة (Emerald Gradient Style)
-        worksheet.mergeCells('A1:L2');
-        const headerCell = worksheet.getCell('A1');
-        headerCell.value = 'التقرير الختامي لإنجازات التحفيظ الأسبوعية';
-        headerCell.font = { name: 'Arial', bold: true, size: 22, color: { argb: 'FFFFFFFF' } };
-        headerCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.emerald } };
-        headerCell.alignment = { horizontal: 'center', vertical: 'middle' };
-        worksheet.getRow(1).height = 30;
-        worksheet.getRow(2).height = 30;
-
-        // 2. بطاقة المعلومات (Info Card)
-        worksheet.mergeCells('A3:E5');
-        const infoCard = worksheet.getCell('A3');
-        infoCard.value = `📍 حلقة: ${halaqa.name}\n👤 المشرف: ${halaqa.supervisor}\n📅 الفترة: من ${startDate} إلى ${endDate}`;
-        infoCard.font = { name: 'Arial', size: 12, color: { argb: colors.textDark } };
-        infoCard.alignment = { wrapText: true, horizontal: 'right', vertical: 'middle' };
-        infoCard.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.grayBg } };
-        infoCard.border = {
-          left: { style: 'thick', color: { argb: colors.emerald } },
-          bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } }
+        // صف فاصل لاسم الحلقة
+        const hRow = worksheet.addRow([]);
+        hRow.height = 30;
+        worksheet.mergeCells(`A${hRow.number}:M${hRow.number}`);
+        const hCell = hRow.getCell(1);
+        hCell.value = `📌 حلقة: ${halaqa.name}  |  👤 المشرف: ${halaqa.supervisor}`;
+        hCell.font = { name: 'Arial', bold: true, size: 14, color: { argb: 'FF065F46' } };
+        hCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+        hCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        hCell.border = { 
+           top: { style: 'medium', color: { argb: 'FF34D399' } },
+           bottom: { style: 'medium', color: { argb: 'FF34D399' } },
+           left: { style: 'thin', color: { argb: 'FF34D399' } },
+           right: { style: 'thin', color: { argb: 'FF34D399' } }
         };
 
-        // 3. ملخص الأداء (Stat Card)
-        worksheet.mergeCells('I3:L5');
-        const hTotal = allTracking.filter(r => halaqaStudents.some(s => (r.studentId?._id || r.studentId) === s._id)).reduce((s, r) => s + r.pagesMemorized, 0);
-        const hReq = halaqaStudents.reduce((s, st) => s + (st.dailyTarget * 6), 0);
-        const hPct = hReq > 0 ? Math.round((hTotal / hReq) * 100) : 0;
-
-        const statCard = worksheet.getCell('I3');
-        statCard.value = `🎯 الإنجاز الكلي: ${hTotal} صفحة\n📈 النسبة الكلية: ${hPct}%`;
-        statCard.font = { name: 'Arial', bold: true, size: 14, color: { argb: colors.emerald } };
-        statCard.alignment = { wrapText: true, horizontal: 'center', vertical: 'middle' };
-        statCard.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.lightEmerald } };
-        statCard.border = { outline: true, style: 'medium', color: { argb: colors.emerald } };
-
-        worksheet.addRow([]); // Spacer
-
-        // 4. أعمدة الجدول الرئيسي
-        const columns = [
-          { header: '#', key: 'idx', width: 6 },
-          { header: 'اسم الطالب', key: 'name', width: 32 },
-          { header: 'المستوى', key: 'level', width: 14 },
-          { header: 'القسط', key: 'target', width: 10 },
-          ...weekDays.map(d => ({ header: d.label, key: d.dateStr, width: 12 })),
-          { header: 'المجموع الأسبوعي', key: 'total', width: 15 },
-          { header: 'الإنجاز التراكمي', key: 'cumulative', width: 15 },
-          { header: 'النسبة', key: 'pct', width: 12 }
-        ];
-
-        // نحدد المفاتيح والعرض فقط حتى لا يقوم ExcelJS بكتابة الهيدر في الصف الأول (فوق العنوان)
-        worksheet.columns = columns.map(col => ({ key: col.key, width: col.width }));
-
-        // 5. كتابة الهيدر صراحة في الصف السابع وتنسيقه
-        const tableHeader = worksheet.getRow(7);
-        tableHeader.values = columns.map(col => col.header);
-        tableHeader.height = 35;
-        tableHeader.eachCell((cell) => {
-          cell.font = { name: 'Arial', bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF374151' } };
-          cell.alignment = { vertical: 'middle', horizontal: 'center' };
-          cell.border = { bottom: { style: 'thick', color: { argb: colors.gold } } };
-        });
-
-        // 6. إضافة البيانات والجماليات (Heatmap)
-        halaqaStudents.forEach((st, index) => {
-          const rowData = { idx: index + 1, name: st.name, level: levelLabel[st.level] || st.level, target: st.dailyTarget };
+        halaqaStudents.forEach((st) => {
+          const rowData = { idx: rowIndex++, name: st.name, level: levelLabel[st.level] || st.level, target: st.dailyTarget };
           let sTotal = 0;
           weekDays.forEach(day => {
             const rec = allTracking.find(r => (r.studentId?._id === st._id || r.studentId === st._id) && toLocalDate(r.date) === day.dateStr);
@@ -368,7 +381,111 @@ export default function WeeklyReport({ user }) {
             }
           });
         });
+
+        // مسافة بين الحلقات
+        worksheet.addRow([]);
       }
+
+      // ─── 3. صفحة إحصائيات جميع الطلبة ───
+      const studentsSheet = workbook.addWorksheet('جميع الطلبة', {
+        views: [{ rightToLeft: true, showGridLines: false }]
+      });
+
+      studentsSheet.mergeCells('A1:G2');
+      const stHeader = studentsSheet.getCell('A1');
+      stHeader.value = 'إحصائيات ومجموع إنجاز جميع الطلبة';
+      stHeader.font = { name: 'Arial', bold: true, size: 20, color: { argb: 'FFFFFFFF' } };
+      stHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.emerald } };
+      stHeader.alignment = { horizontal: 'center', vertical: 'middle' };
+      studentsSheet.getRow(1).height = 30;
+      studentsSheet.getRow(2).height = 30;
+
+      studentsSheet.addRow([]); // Spacer
+
+      const stColumns = [
+        { header: '#', key: 'idx', width: 6 },
+        { header: 'اسم الطالب', key: 'name', width: 35 },
+        { header: 'الحلقة', key: 'halaqa', width: 25 },
+        { header: 'المستوى', key: 'level', width: 15 },
+        { header: 'المطلوب أسبوعياً', key: 'req', width: 20 },
+        { header: 'المجموع الأسبوعي', key: 'total', width: 20 },
+        { header: 'النسبة', key: 'pct', width: 15 }
+      ];
+      studentsSheet.columns = stColumns.map(col => ({ key: col.key, width: col.width }));
+      
+      const stTableHeader = studentsSheet.getRow(4);
+      stTableHeader.values = stColumns.map(c => c.header);
+      stTableHeader.height = 35;
+      stTableHeader.eachCell(c => {
+        c.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF374151' } };
+        c.alignment = { vertical: 'middle', horizontal: 'center' };
+      });
+
+      const studentsData = [];
+      allStudents.forEach(st => {
+        let halaqaName = 'غير محدد';
+        const hId = st.halaqaId?._id || st.halaqaId;
+        if (hId) {
+          const h = allHalaqat.find(ha => ha._id === hId);
+          if (h) halaqaName = h.name;
+        }
+
+        let sTotal = 0;
+        weekDays.forEach(day => {
+          const rec = allTracking.find(r => (r.studentId?._id === st._id || r.studentId === st._id) && toLocalDate(r.date) === day.dateStr);
+          if (rec && rec.attendance !== 'absent') {
+            sTotal += rec.pagesMemorized;
+          }
+        });
+
+        const sReq = (st.dailyTarget || 0) * 6;
+        const sPct = sReq > 0 ? Math.round((sTotal / sReq) * 100) : 0;
+
+        studentsData.push({
+          name: st.name,
+          halaqa: halaqaName,
+          level: levelLabel[st.level] || st.level,
+          req: sReq,
+          total: sTotal,
+          pct: sPct
+        });
+      });
+
+      studentsData.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'ar'));
+
+      studentsData.forEach((st, i) => {
+        const row = studentsSheet.addRow({
+          idx: i + 1,
+          name: st.name,
+          halaqa: st.halaqa,
+          level: st.level,
+          req: st.req,
+          total: st.total,
+          pct: `${st.pct}%`
+        });
+        row.height = 30;
+        row.eachCell((cell, colNumber) => {
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.border = { bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } } };
+          if (colNumber === 2) { 
+             cell.font = { bold: true, size: 11 };
+             cell.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
+          }
+          if (colNumber === 3) {
+             cell.font = { bold: true, size: 10, color: { argb: 'FF4B5563' } };
+          }
+          if (colNumber === 6) { 
+             cell.font = { bold: true, color: { argb: 'FF065F46' }, size: 11 };
+             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+          }
+          if (colNumber === 7) { 
+             const p = st.pct;
+             cell.font = { bold: true, color: { argb: p >= 80 ? 'FF065F46' : p >= 50 ? 'FFB45309' : 'FFB91C1C' } };
+             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+          }
+        });
+      });
 
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });

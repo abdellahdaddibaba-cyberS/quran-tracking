@@ -9,11 +9,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
-import { Lock, User as UserIcon } from 'lucide-react-native';
+import { Lock, User as UserIcon, Eye, EyeOff } from 'lucide-react-native';
 import { PrimaryButton } from '../components/ui/PrimaryButton';
 import { spacing, radius, cardShadow } from '../constants/layout';
 
@@ -24,6 +25,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [focusedField, setFocusedField] = useState<'username' | 'password' | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
 
@@ -97,8 +100,20 @@ export default function LoginScreen() {
             </View>
           ) : null}
 
-          <View style={[styles.inputContainer, { borderColor: colors.border, backgroundColor: colors.surfaceTrans }]}>
-            <UserIcon size={20} color={colors.textMuted} style={styles.inputIcon} />
+          <View
+            style={[
+              styles.inputContainer,
+              {
+                borderColor: focusedField === 'username' ? colors.primary : colors.border,
+                backgroundColor: focusedField === 'username' ? (theme === 'dark' ? 'rgba(96, 165, 250, 0.05)' : 'rgba(29, 78, 216, 0.03)') : colors.surfaceTrans,
+              },
+            ]}
+          >
+            <UserIcon
+              size={20}
+              color={focusedField === 'username' ? colors.primary : colors.textMuted}
+              style={styles.inputIcon}
+            />
             <TextInput
               style={[styles.input, { color: colors.text }]}
               placeholder="اسم المستخدم"
@@ -107,20 +122,46 @@ export default function LoginScreen() {
               onChangeText={setUsername}
               autoCapitalize="none"
               textAlign="right"
+              onFocus={() => setFocusedField('username')}
+              onBlur={() => setFocusedField(null)}
             />
           </View>
 
-          <View style={[styles.inputContainer, { borderColor: colors.border, backgroundColor: colors.surfaceTrans }]}>
-            <Lock size={20} color={colors.textMuted} style={styles.inputIcon} />
+          <View
+            style={[
+              styles.inputContainer,
+              {
+                borderColor: focusedField === 'password' ? colors.primary : colors.border,
+                backgroundColor: focusedField === 'password' ? (theme === 'dark' ? 'rgba(96, 165, 250, 0.05)' : 'rgba(29, 78, 216, 0.03)') : colors.surfaceTrans,
+              },
+            ]}
+          >
+            <Lock
+              size={20}
+              color={focusedField === 'password' ? colors.primary : colors.textMuted}
+              style={styles.inputIcon}
+            />
             <TextInput
               style={[styles.input, { color: colors.text }]}
               placeholder="كلمة المرور"
               placeholderTextColor={colors.textMuted}
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
+              secureTextEntry={!showPassword}
               textAlign="right"
+              onFocus={() => setFocusedField('password')}
+              onBlur={() => setFocusedField(null)}
             />
+            <TouchableOpacity
+              onPress={() => setShowPassword(!showPassword)}
+              style={styles.eyeBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              {showPassword
+                ? <EyeOff size={20} color={colors.textMuted} />
+                : <Eye size={20} color={colors.textMuted} />
+              }
+            </TouchableOpacity>
           </View>
 
           <PrimaryButton
@@ -152,7 +193,7 @@ const getStyles = (colors: typeof import('../context/ThemeContext').Colors.light
       marginBottom: spacing.xl,
     },
     logoWrap: {
-      backgroundColor: theme === 'dark' ? colors.card : '#ffffff',
+      backgroundColor: '#ffffff',
       width: 112,
       height: 112,
       borderRadius: radius.xl,
@@ -215,6 +256,10 @@ const getStyles = (colors: typeof import('../context/ThemeContext').Colors.light
       flex: 1,
       height: 52,
       fontSize: 16,
+    },
+    eyeBtn: {
+      padding: spacing.xs,
+      marginRight: spacing.xs,
     },
     footer: {
       textAlign: 'center',

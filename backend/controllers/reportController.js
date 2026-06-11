@@ -335,71 +335,24 @@ const getAwardStudents = async (req, res) => {
 };
 
 /**
- * تسليم جائزة للطالب وتصفير السلسلة (عن طريق وسم السجلات كـ مكافأة)
+ * تسليم جائزة للطالب
  */
 const givePrize = async (req, res) => {
   try {
     const { studentId, prizeTitle } = req.body;
-    
+
     if (!studentId) {
       return res.status(400).json({ success: false, message: 'معرف الطالب مطلوب' });
     }
 
-    // 1. جلب السجلات غير المكافأة للطالب
-    const query = `
-      SELECT _id, "pagesRequired", "pagesMemorized", "isSurahCompleted", "attendance"
-      FROM "daily_trackings"
-      WHERE "studentId" = :studentId 
-      AND ("rewarded" = false OR "rewarded" IS NULL)
-      ORDER BY "date" DESC
-    `;
-    
-    const records = await sequelize.query(query, {
-      replacements: { studentId },
-      type: sequelize.QueryTypes.SELECT
-    });
-
-    // 2. تطبيق نفس منطق السلسلة لتحديد المعرفات الصحيحة
-    let streakIds = [];
-    for (let i = 0; i < records.length; i++) {
-      const r = records[i];
-      const memorized = Number(r.pagesMemorized || r.pagesmemorized || 0);
-      const required = Number(r.pagesRequired || r.pagesrequired || 0);
-      const surahDone = r.isSurahCompleted || r.issurahcompleted || false;
-      const attendance = r.attendance || 'present';
-      
-      const isSuccess = (attendance === 'present') && (memorized >= required || surahDone === true || surahDone === 1) && required > 0;
-
-      if (isSuccess) {
-        streakIds.push(r._id || r.id);
-        if (streakIds.length >= 3) break;
-      } else {
-        if (streakIds.length > 0) break; 
-      }
-    }
-
-    if (streakIds.length < 3) {
-      return res.status(400).json({ success: false, message: 'الطالب لم يكمل 3 أيام متتالية ناجحة حالياً' });
-    }
-
-    // 3. تحديث السجلات لتصبح مكافأة
-    await DailyTracking.update(
-      { rewarded: true },
-      { where: { _id: streakIds } }
-    );
-
-    // 3. إضافة سجل في جدول الجوائز (إن وجد)
     const Prize = require('../models/Prize');
     await Prize.create({
       studentId,
-      title: prizeTitle || 'جائزة التميز (3 أيام متتالية)',
+      title: prizeTitle || 'جائزة الانضباط',
       date: new Date()
     });
 
-    res.json({
-      success: true,
-      message: 'تم تسليم الجائزة بنجاح وتحديث السلسلة'
-    });
+    res.json({ success: true, message: 'تم تسليم الجائزة بنجاح' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -435,6 +388,136 @@ const getRecentPrizes = async (req, res) => {
   }
 };
 
+const getWeekRange = (baseDateObj, offsetWeeks) => {
+  const satDate = new Date(baseDateObj);
+  satDate.setDate(baseDateObj.getDate() + (offsetWeeks * 7) - 7);
+  
+  const thuDate = new Date(baseDateObj);
+  thuDate.setDate(baseDateObj.getDate() + (offsetWeeks * 7) - 2);
+
+  const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  
+  return {
+    startDate: toDateStr(satDate),
+    endDate: toDateStr(thuDate)
+  };
+};
+
+/**
+ * جلب الطلاب المؤهلين لجوائز التحسن
+ */
+const getImprovementAwards = async (req, res) => {
+  try {
+    const { date } = req.query; // YYYY-MM-DD (السبت المطلوب تقييمه)
+    if (!date) {
+      return res.status(400).json({ success: false, message: 'التاريخ مطلوب' });
+    }
+
+    const [y, m, d] = date.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+
+    // حساب نطاق الأسبوع الحالي والأسبوع السابق
+    const currentWeek = getWeekRange(dateObj, 0);
+    const prevWeek = getWeekRange(dateObj, -1);
+
+    const Student = require('../models/Student');
+    const DailyTracking = require('../models/DailyTracking');
+    const Halaqa = require('../models/Halaqa');
+
+    // جلب الطلاب الذين قسطهم اليومي صفحتين أو أقل
+    const students = await Student.findAll({
+      where: {
+        isActive: true,
+        dailyTarget: {
+          [Op.lte]: 2
+        }
+      },
+      include: [{
+        model: Halaqa,
+        as: 'halaqa',
+        attributes: ['name']
+      }]
+    });
+
+    const studentIds = students.map(s => s._id);
+
+    // جلب سجلات المتابعة للأسبوع الحالي
+    const currentTrackings = await DailyTracking.findAll({
+      where: {
+        studentId: { [Op.in]: studentIds },
+        date: { [Op.between]: [currentWeek.startDate, currentWeek.endDate] },
+        attendance: 'present'
+      }
+    });
+
+    // جلب سجلات المتابعة للأسبوع السابق
+    const prevTrackings = await DailyTracking.findAll({
+      where: {
+        studentId: { [Op.in]: studentIds },
+        date: { [Op.between]: [prevWeek.startDate, prevWeek.endDate] },
+        attendance: 'present'
+      }
+    });
+
+    // تجميع الصفحات المنجزة حسب الطالب للأسبوع الحالي
+    const currentSum = {};
+    currentTrackings.forEach(t => {
+      const sid = t.studentId;
+      currentSum[sid] = (currentSum[sid] || 0) + Number(t.pagesMemorized || 0);
+    });
+
+    // تجميع الصفحات المنجزة حسب الطالب للأسبوع السابق
+    const prevSum = {};
+    prevTrackings.forEach(t => {
+      const sid = t.studentId;
+      prevSum[sid] = (prevSum[sid] || 0) + Number(t.pagesMemorized || 0);
+    });
+
+    // تصنيف الطلاب المؤهلين لجوائز التحسن
+    const level1Winners = []; // 9 صفحات أو أكثر هذا الأسبوع
+    const level2Winners = []; // 14 صفحة أو أكثر هذا الأسبوع بشرط أن يكون الأسبوع السابق قد أنجز 9 أو أكثر
+
+    students.forEach(st => {
+      const sid = st._id;
+      const currentPages = currentSum[sid] || 0;
+      const prevPages = prevSum[sid] || 0;
+
+      // جائزة المستوى 2: 14 صفحة أو أكثر، مع تحسن لا يقل عن 5 صفحات عن المستوى الأول للأسبوع السابق
+      if (currentPages >= 14 && prevPages >= 9) {
+        level2Winners.push({
+          student: st,
+          currentPages,
+          prevPages,
+          type: 'level2',
+          title: 'جائزة تحسن - مستوى 2 (إنجاز 14 صفحة بزيادة 5 صفحات)'
+        });
+      }
+      // جائزة المستوى 1: 9 صفحات أو أكثر
+      else if (currentPages >= 9) {
+        level1Winners.push({
+          student: st,
+          currentPages,
+          prevPages,
+          type: 'level1',
+          title: 'جائزة تحسن - مستوى 1 (إنجاز 9 صفحات)'
+        });
+      }
+    });
+
+    res.json({
+      success: true,
+      currentWeek,
+      prevWeek,
+      data: {
+        level1: level1Winners,
+        level2: level2Winners
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   getLowPageStudents,
   getIndividualSessions,
@@ -443,5 +526,6 @@ module.exports = {
   deleteSession,
   getAwardStudents,
   givePrize,
-  getRecentPrizes
+  getRecentPrizes,
+  getImprovementAwards
 };

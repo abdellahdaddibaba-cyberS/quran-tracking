@@ -7,7 +7,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
-import { Save, CheckCircle, AlertCircle, MessageSquare } from 'lucide-react-native';
+import { Save, CheckCircle, AlertCircle, MessageSquare, User, Lock, Eye, EyeOff } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { spacing, radius, cardShadow } from '../constants/layout';
@@ -23,6 +23,9 @@ export default function SettingsScreen() {
   const [oldPassword, setOldPassword] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState<'username' | 'oldPassword' | 'password' | null>(null);
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | null; text: string }>({ type: null, text: '' });
 
   const showStatus = (type: 'success' | 'error', text: string) => {
@@ -115,16 +118,27 @@ export default function SettingsScreen() {
 
           <View style={styles.formGroup}>
             <Text style={styles.label}>اسم المستخدم</Text>
-            <TextInput
-              style={styles.input}
-              value={username}
-              onChangeText={setUsername}
-              placeholder="أدخل اسم المستخدم"
-              placeholderTextColor={colors.textMuted}
-              textAlign="right"
-              autoCapitalize="none"
-              editable={!loading}
-            />
+            <View style={[
+              styles.inputContainer,
+              {
+                borderColor: focusedField === 'username' ? colors.primary : colors.border,
+                backgroundColor: focusedField === 'username' ? (theme === 'dark' ? 'rgba(96, 165, 250, 0.05)' : 'rgba(29, 78, 216, 0.03)') : colors.surfaceTrans,
+              }
+            ]}>
+              <User size={20} color={focusedField === 'username' ? colors.primary : colors.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, { color: colors.text }]}
+                value={username}
+                onChangeText={setUsername}
+                placeholder="أدخل اسم المستخدم"
+                placeholderTextColor={colors.textMuted}
+                textAlign="right"
+                autoCapitalize="none"
+                editable={!loading}
+                onFocus={() => setFocusedField('username')}
+                onBlur={() => setFocusedField(null)}
+              />
+            </View>
           </View>
 
           <View style={styles.divider}>
@@ -135,30 +149,72 @@ export default function SettingsScreen() {
 
           <View style={styles.formGroup}>
             <Text style={styles.label}>كلمة المرور الحالية</Text>
-            <TextInput
-              style={styles.input}
-              value={oldPassword}
-              onChangeText={setOldPassword}
-              placeholder="كلمة المرور الحالية"
-              placeholderTextColor={colors.textMuted}
-              secureTextEntry
-              textAlign="right"
-              editable={!loading}
-            />
+            <View style={[
+              styles.inputContainer,
+              {
+                borderColor: focusedField === 'oldPassword' ? colors.primary : colors.border,
+                backgroundColor: focusedField === 'oldPassword' ? (theme === 'dark' ? 'rgba(96, 165, 250, 0.05)' : 'rgba(29, 78, 216, 0.03)') : colors.surfaceTrans,
+              }
+            ]}>
+              <Lock size={20} color={focusedField === 'oldPassword' ? colors.primary : colors.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, { color: colors.text }]}
+                value={oldPassword}
+                onChangeText={setOldPassword}
+                placeholder="كلمة المرور الحالية"
+                placeholderTextColor={colors.textMuted}
+                secureTextEntry={!showOldPassword}
+                textAlign="right"
+                editable={!loading}
+                onFocus={() => setFocusedField('oldPassword')}
+                onBlur={() => setFocusedField(null)}
+              />
+              <TouchableOpacity
+                onPress={() => setShowOldPassword(!showOldPassword)}
+                style={styles.eyeBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                {showOldPassword
+                  ? <EyeOff size={20} color={colors.textMuted} />
+                  : <Eye size={20} color={colors.textMuted} />
+                }
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.formGroup}>
             <Text style={styles.label}>كلمة المرور الجديدة</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="كلمة المرور الجديدة"
-              placeholderTextColor={colors.textMuted}
-              secureTextEntry
-              textAlign="right"
-              editable={!loading}
-            />
+            <View style={[
+              styles.inputContainer,
+              {
+                borderColor: focusedField === 'password' ? colors.primary : colors.border,
+                backgroundColor: focusedField === 'password' ? (theme === 'dark' ? 'rgba(96, 165, 250, 0.05)' : 'rgba(29, 78, 216, 0.03)') : colors.surfaceTrans,
+              }
+            ]}>
+              <Lock size={20} color={focusedField === 'password' ? colors.primary : colors.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, { color: colors.text }]}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="كلمة المرور الجديدة"
+                placeholderTextColor={colors.textMuted}
+                secureTextEntry={!showNewPassword}
+                textAlign="right"
+                editable={!loading}
+                onFocus={() => setFocusedField('password')}
+                onBlur={() => setFocusedField(null)}
+              />
+              <TouchableOpacity
+                onPress={() => setShowNewPassword(!showNewPassword)}
+                style={styles.eyeBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                {showNewPassword
+                  ? <EyeOff size={20} color={colors.textMuted} />
+                  : <Eye size={20} color={colors.textMuted} />
+                }
+              </TouchableOpacity>
+            </View>
           </View>
 
           <TouchableOpacity
@@ -235,14 +291,24 @@ const getStyles = (colors: ReturnType<typeof import('../context/ThemeContext').u
     statusText: { flex: 1, fontSize: 14, fontWeight: '600', textAlign: 'right' },
     formGroup: { marginBottom: spacing.md },
     label: { color: colors.textMuted, fontSize: 13, marginBottom: spacing.sm, textAlign: 'right', fontWeight: '600' },
-    input: {
-      backgroundColor: colors.surfaceTrans,
-      borderWidth: 1,
-      borderColor: colors.border,
+    inputContainer: {
+      flexDirection: 'row-reverse',
+      alignItems: 'center',
       borderRadius: radius.md,
-      padding: spacing.md,
-      color: colors.text,
+      borderWidth: 1,
+      paddingHorizontal: spacing.md,
+    },
+    inputIcon: {
+      marginLeft: spacing.md,
+    },
+    input: {
+      flex: 1,
+      height: 52,
       fontSize: 16,
+    },
+    eyeBtn: {
+      padding: spacing.xs,
+      marginRight: spacing.xs,
     },
     divider: {
       flexDirection: 'row-reverse',
