@@ -88,19 +88,18 @@ const createBulkStudents = async (req, res) => {
       transaction
     });
 
-    const normalizeArabic = (text) => {
-      if (!text) return '';
-      return String(text)
-        .trim()
-        .replace(/[أإآا]/g, 'ا')
-        .replace(/ة/g, 'ه')
-        .replace(/ى/g, 'ي')
-        .replace(/\s+/g, '')
-        .toLowerCase();
-    };
-
     const parentCache = [...existingParents];
     let parentsCreatedCount = 0;
+
+    const normalizeArabic = (str) => {
+      if (!str) return '';
+      return String(str)
+        .trim()
+        .toLowerCase()
+        .replace(/[أإآ]/g, 'ا')
+        .replace(/ة/g, 'ه')
+        .replace(/\s+/g, '');
+    };
 
     const processedStudents = [];
 
@@ -115,41 +114,42 @@ const createBulkStudents = async (req, res) => {
 
         // 1. البحث في الكاش المحلي (الذي يضم أولياء الأمور الحاليين والجدد المنشئين في هذه الدفعة)
         let matchedParent = null;
-        if (pPhone) {
-          matchedParent = parentCache.find(p => p.phoneNumber && String(p.phoneNumber).trim() === pPhone);
+        const normPhone = normalizeArabic(pPhone);
+        const normName = normalizeArabic(pName);
+
+        if (normPhone) {
+          matchedParent = parentCache.find(p => p.phoneNumber && normalizeArabic(p.phoneNumber) === normPhone);
         }
         if (!matchedParent) {
-          const normPName = normalizeArabic(pName);
-          matchedParent = parentCache.find(p => p.fullName && normalizeArabic(p.fullName) === normPName);
+          matchedParent = parentCache.find(p => p.fullName && normalizeArabic(p.fullName) === normName);
         }
 
         if (matchedParent) {
           parentId = matchedParent._id;
         } else {
           // 2. إذا لم نعثر عليه، نقوم بإنشاء ولي أمر جديد
-          // توليد اسم مستخدم فريد
-          let username = '';
-          if (pPhone) {
-            const cleanPhone = pPhone.replace(/\D/g, '');
-            if (cleanPhone.length >= 6) {
-              const isTaken = parentCache.some(p => p.username === cleanPhone) ||
-                              await User.findOne({ where: { username: cleanPhone }, transaction });
-              if (!isTaken) {
-                username = cleanPhone;
-              }
-            }
+          // توليد اسم مستخدم فريد من اسم الأب باللغة العربية
+          let baseUsername = pName.trim().replace(/\s+/g, '_');
+          // إزالة أي رموز غير مرغوب فيها، مع الإبقاء على الحروف العربية، اللاتينية، الأرقام والشرطة السفلية
+          baseUsername = baseUsername.replace(/[^\u0600-\u06FFa-zA-Z0-9_]/g, '');
+
+          if (!baseUsername) {
+            baseUsername = 'parent';
           }
 
-          if (!username) {
-            let isUnique = false;
-            while (!isUnique) {
-              const rand = Math.floor(100000 + Math.random() * 900000);
-              username = `parent_${rand}`;
-              const isTaken = parentCache.some(p => p.username === username) ||
-                              await User.findOne({ where: { username }, transaction });
-              if (!isTaken) {
-                isUnique = true;
-              }
+          let username = baseUsername;
+          let isUnique = false;
+          let counter = 0;
+          
+          while (!isUnique) {
+            const checkName = counter === 0 ? username : `${username}_${counter}`;
+            const isTaken = parentCache.some(p => p.username === checkName) ||
+                            await User.findOne({ where: { username: checkName }, transaction });
+            if (!isTaken) {
+              username = checkName;
+              isUnique = true;
+            } else {
+              counter++;
             }
           }
 

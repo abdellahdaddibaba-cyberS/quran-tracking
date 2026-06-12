@@ -21,7 +21,12 @@ const seedAdmin = async () => {
       });
       console.log('✅ تم إنشاء مستخدم أدمن بنجاح: admin/admin');
     } else {
-      console.log('ℹ️ مستخدم الأدمن موجود بالفعل');
+      adminExists.password = 'admin';
+      adminExists.fullName = 'المدير العام';
+      adminExists.role = 'admin';
+      adminExists.isActive = true;
+      await adminExists.save();
+      console.log('✅ تم تحديث كلمة مرور مستخدم الأدمن الحالي إلى: admin');
     }
     
     process.exit();

@@ -206,6 +206,28 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
   );
 }
 
+// دالة لتطهير ومقارنة النصوص العربية بشكل مرن
+const normalizeArabicKey = (str) => {
+  if (!str) return '';
+  return String(str)
+    .trim()
+    .toLowerCase()
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/\s+/g, '');
+};
+
+// دالة لجلب القيمة من السطر بناءً على المفاتيح المحتملة
+const getExcelValue = (row, possibleKeys) => {
+  const normalizedPossibles = possibleKeys.map(normalizeArabicKey);
+  for (const key of Object.keys(row)) {
+    if (normalizedPossibles.includes(normalizeArabicKey(key))) {
+      return row[key];
+    }
+  }
+  return '';
+};
+
 // ─── Excel Import Modal ────────────────────────────────────────────────
 function ExcelImportModal({ halaqat, parents, onClose, onSave }) {
   const [selectedHalaqa, setSelectedHalaqa] = useState('');
@@ -235,59 +257,27 @@ function ExcelImportModal({ halaqat, parents, onClose, onSave }) {
           return;
         }
 
-        const normalizeArabic = (text) => {
-          if (!text) return '';
-          return String(text)
-            .trim()
-            .replace(/[أإآا]/g, 'ا')
-            .replace(/ة/g, 'ه')
-            .replace(/ى/g, 'ي')
-            .replace(/\s+/g, '')
-            .toLowerCase();
-        };
-
-        const isValidParentName = (name) => {
-          if (!name) return false;
-          const clean = name.trim();
-          if (clean.length <= 1) return false;
-          if (/^(لا|لا يوجد|بدون|لايوجد|-|\/|\\|none|null|undefined|na|n\/a)$/i.test(clean)) return false;
-          return true;
-        };
-
         const students = rows.map((row) => {
-          let levelStr = String(row['المستوى'] || 'الأول');
+          const name = String(getExcelValue(row, ['الاسم', 'اسم الطالب', 'الطالب']) || '').trim();
+          const startSurah = String(getExcelValue(row, ['بداية السورة', 'السورة', 'سورة البداية']) || '').trim();
+          const dailyTargetStr = getExcelValue(row, ['القسط', 'القسط اليومي', 'الصفحات', 'عدد الصفحات', 'المقدار']);
+          const dailyTarget = dailyTargetStr ? Number(dailyTargetStr) : 1;
+
+          let levelStr = String(getExcelValue(row, ['المستوى', 'مستوى']) || 'الأول');
           let level = 'level1';
           if (levelStr.includes('ثاني') || levelStr === '2') level = 'level2';
-          else if (levelStr.includes('ثالث') || levelStr === '3') level = 'level3';
+          else if (levelStr.includes('ثالع') || levelStr.includes('ثالث') || levelStr === '3') level = 'level3';
           else if (levelStr.includes('رابع') || levelStr === '4') level = 'level4';
 
-          // البحث المرن عن عمود اسم ولي الأمر
-          const parentNameKey = Object.keys(row).find(k => {
-            const normalized = k.trim().toLowerCase();
-            return (normalized.includes('أب') || normalized.includes('ولي') || normalized.includes('والد')) &&
-                   !(normalized.includes('هاتف') || normalized.includes('رقم') || normalized.includes('جوال') || normalized.includes('تليفون') || normalized.includes('صورة') || normalized.includes('أيام') || normalized.includes('أسبوع'));
-          });
-          const rawParentName = parentNameKey ? String(row[parentNameKey] || '').trim() : '';
-          const parentName = isValidParentName(rawParentName) ? rawParentName : '';
-
-          // البحث المرن عن عمود الهاتف
-          const parentPhoneKey = Object.keys(row).find(k => {
-            const normalized = k.trim().toLowerCase();
-            return (normalized.includes('هاتف') || normalized.includes('رقم') || normalized.includes('جوال') || normalized.includes('تليفون')) &&
-                   (normalized.includes('أب') || normalized.includes('ولي') || normalized.includes('والد'));
-          }) || Object.keys(row).find(k => {
-            const normalized = k.trim().toLowerCase();
-            return normalized.includes('هاتف') || normalized.includes('رقم') || normalized.includes('جوال') || normalized.includes('تليفون');
-          });
-          const parentPhone = parentPhoneKey ? String(row[parentPhoneKey] || '').trim() : '';
+          const parentName = String(getExcelValue(row, ['الاب', 'الأب', 'ولي الامر', 'ولي الأمر', 'اسم الاب', 'اسم ولي الامر', 'اسم ولي الأمر', 'الوالد', 'اسم الوالد']) || '').trim();
+          const parentPhone = String(getExcelValue(row, ['هاتف الاب', 'هاتف الأب', 'هاتف ولي الامر', 'هاتف ولي الأمر', 'رقم هاتف ولي الامر', 'رقم هاتف ولي الأمر', 'رقم الهاتف', 'الهاتف', 'رقم هاتف الاب', 'رقم هاتف الأب', 'جوال ولي الامر', 'جوال ولي الأمر', 'الجوال', 'رقم الجوال']) || '').trim();
 
           let parentId = null;
           if (parentName) {
-            const normParentName = normalizeArabic(parentName);
             const matchedParent = parents.find(p => {
-              const fullNameMatch = p.fullName && normalizeArabic(p.fullName) === normParentName;
-              const phoneMatch = parentPhone && p.phoneNumber && String(p.phoneNumber).trim() === parentPhone;
-              const usernameMatch = p.username && normalizeArabic(p.username) === normParentName;
+              const fullNameMatch = normalizeArabicKey(p.fullName) === normalizeArabicKey(parentName);
+              const phoneMatch = p.phoneNumber && normalizeArabicKey(p.phoneNumber) === normalizeArabicKey(parentPhone || parentName);
+              const usernameMatch = p.username && normalizeArabicKey(p.username) === normalizeArabicKey(parentName);
               return fullNameMatch || phoneMatch || usernameMatch;
             });
             if (matchedParent) {
@@ -296,10 +286,10 @@ function ExcelImportModal({ halaqat, parents, onClose, onSave }) {
           }
 
           return {
-            name: String(row['الاسم'] || row['اسم الطالب'] || row['طالب'] || '').trim(),
+            name: name,
             level: level,
-            startSurah: String(row['بداية السورة'] || row['سورة البداية'] || row['السورة'] || '').trim(),
-            dailyTarget: row['القسط'] ? Number(row['القسط']) : (row['القسط اليومي'] ? Number(row['القسط اليومي']) : 1),
+            startSurah: startSurah,
+            dailyTarget: dailyTarget,
             halaqaId: selectedHalaqa,
             parentId: parentId,
             parentName: parentName || undefined,
