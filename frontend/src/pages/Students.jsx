@@ -235,6 +235,25 @@ function ExcelImportModal({ halaqat, parents, onClose, onSave }) {
           return;
         }
 
+        const normalizeArabic = (text) => {
+          if (!text) return '';
+          return String(text)
+            .trim()
+            .replace(/[أإآا]/g, 'ا')
+            .replace(/ة/g, 'ه')
+            .replace(/ى/g, 'ي')
+            .replace(/\s+/g, '')
+            .toLowerCase();
+        };
+
+        const isValidParentName = (name) => {
+          if (!name) return false;
+          const clean = name.trim();
+          if (clean.length <= 1) return false;
+          if (/^(لا|لا يوجد|بدون|لايوجد|-|\/|\\|none|null|undefined|na|n\/a)$/i.test(clean)) return false;
+          return true;
+        };
+
         const students = rows.map((row) => {
           let levelStr = String(row['المستوى'] || 'الأول');
           let level = 'level1';
@@ -242,15 +261,33 @@ function ExcelImportModal({ halaqat, parents, onClose, onSave }) {
           else if (levelStr.includes('ثالث') || levelStr === '3') level = 'level3';
           else if (levelStr.includes('رابع') || levelStr === '4') level = 'level4';
 
-          const parentName = String(row['الأب'] || row['ولي الأمر'] || '').trim();
-          const parentPhone = String(row['هاتف الأب'] || row['هاتف ولي الأمر'] || row['رقم هاتف ولي الأمر'] || row['رقم الهاتف'] || row['الهاتف'] || '').trim();
+          // البحث المرن عن عمود اسم ولي الأمر
+          const parentNameKey = Object.keys(row).find(k => {
+            const normalized = k.trim().toLowerCase();
+            return (normalized.includes('أب') || normalized.includes('ولي') || normalized.includes('والد')) &&
+                   !(normalized.includes('هاتف') || normalized.includes('رقم') || normalized.includes('جوال') || normalized.includes('تليفون') || normalized.includes('صورة') || normalized.includes('أيام') || normalized.includes('أسبوع'));
+          });
+          const rawParentName = parentNameKey ? String(row[parentNameKey] || '').trim() : '';
+          const parentName = isValidParentName(rawParentName) ? rawParentName : '';
+
+          // البحث المرن عن عمود الهاتف
+          const parentPhoneKey = Object.keys(row).find(k => {
+            const normalized = k.trim().toLowerCase();
+            return (normalized.includes('هاتف') || normalized.includes('رقم') || normalized.includes('جوال') || normalized.includes('تليفون')) &&
+                   (normalized.includes('أب') || normalized.includes('ولي') || normalized.includes('والد'));
+          }) || Object.keys(row).find(k => {
+            const normalized = k.trim().toLowerCase();
+            return normalized.includes('هاتف') || normalized.includes('رقم') || normalized.includes('جوال') || normalized.includes('تليفون');
+          });
+          const parentPhone = parentPhoneKey ? String(row[parentPhoneKey] || '').trim() : '';
 
           let parentId = null;
           if (parentName) {
+            const normParentName = normalizeArabic(parentName);
             const matchedParent = parents.find(p => {
-              const fullNameMatch = p.fullName.trim().toLowerCase() === parentName.toLowerCase();
-              const phoneMatch = p.phoneNumber && String(p.phoneNumber).trim() === parentName;
-              const usernameMatch = p.username.trim().toLowerCase() === parentName.toLowerCase();
+              const fullNameMatch = p.fullName && normalizeArabic(p.fullName) === normParentName;
+              const phoneMatch = parentPhone && p.phoneNumber && String(p.phoneNumber).trim() === parentPhone;
+              const usernameMatch = p.username && normalizeArabic(p.username) === normParentName;
               return fullNameMatch || phoneMatch || usernameMatch;
             });
             if (matchedParent) {
@@ -259,9 +296,9 @@ function ExcelImportModal({ halaqat, parents, onClose, onSave }) {
           }
 
           return {
-            name: String(row['الاسم'] || ''),
+            name: String(row['الاسم'] || row['اسم الطالب'] || row['طالب'] || '').trim(),
             level: level,
-            startSurah: String(row['بداية السورة'] || ''),
+            startSurah: String(row['بداية السورة'] || row['سورة البداية'] || row['السورة'] || '').trim(),
             dailyTarget: row['القسط'] ? Number(row['القسط']) : (row['القسط اليومي'] ? Number(row['القسط اليومي']) : 1),
             halaqaId: selectedHalaqa,
             parentId: parentId,

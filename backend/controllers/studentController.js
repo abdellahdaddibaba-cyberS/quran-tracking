@@ -88,6 +88,17 @@ const createBulkStudents = async (req, res) => {
       transaction
     });
 
+    const normalizeArabic = (text) => {
+      if (!text) return '';
+      return String(text)
+        .trim()
+        .replace(/[أإآا]/g, 'ا')
+        .replace(/ة/g, 'ه')
+        .replace(/ى/g, 'ي')
+        .replace(/\s+/g, '')
+        .toLowerCase();
+    };
+
     const parentCache = [...existingParents];
     let parentsCreatedCount = 0;
 
@@ -108,7 +119,8 @@ const createBulkStudents = async (req, res) => {
           matchedParent = parentCache.find(p => p.phoneNumber && String(p.phoneNumber).trim() === pPhone);
         }
         if (!matchedParent) {
-          matchedParent = parentCache.find(p => p.fullName && p.fullName.trim().toLowerCase() === pName.toLowerCase());
+          const normPName = normalizeArabic(pName);
+          matchedParent = parentCache.find(p => p.fullName && normalizeArabic(p.fullName) === normPName);
         }
 
         if (matchedParent) {
