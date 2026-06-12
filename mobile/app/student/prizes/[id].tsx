@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, FlatList, SafeAreaView } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { mobileAPI } from '../../../services/api';
-import { Trophy, Star, Medal } from 'lucide-react-native';
+import { Trophy, Star, Medal, Crown } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { LoadingView } from '../../../components/ui/LoadingView';
 import { EmptyState } from '../../../components/ui/EmptyState';
@@ -37,6 +37,8 @@ export default function PrizesScreen() {
         return <Medal size={28} color={colors.gold} />;
       case 'trophy':
         return <Trophy size={28} color={colors.gold} />;
+      case 'crown':
+        return <Crown size={28} color={colors.gold} />;
       default:
         return <Star size={28} color={colors.gold} />;
     }

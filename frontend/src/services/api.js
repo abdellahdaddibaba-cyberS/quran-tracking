@@ -75,8 +75,8 @@ export const reportsAPI = {
   deleteSession: (data) => api.post('/reports/delete-session', data),
   getAwardStudents: () => api.get('/reports/award-students'),
   getRecentPrizes: () => api.get('/reports/recent-prizes'),
-  givePrize: (data) => api.post('/reports/give-prize', data),
   getImprovementAwards: (date) => api.get('/reports/improvement-awards', { params: { date } }),
+  givePrize: (data) => api.post('/reports/give-prize', data),
 };
 
 // ─── Auth & Users API ─────────────────────────────────────────────

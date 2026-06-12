@@ -346,11 +346,62 @@ const givePrize = async (req, res) => {
     }
 
     const Prize = require('../models/Prize');
-    await Prize.create({
+    const Student = require('../models/Student');
+    const User = require('../models/User');
+    const { sendPushNotification } = require('../utils/notification');
+    const { syncPushTokensFromSupabase } = require('../utils/syncPushTokens');
+
+    // Determine icon and description based on prizeTitle
+    let icon = 'star';
+    let description = '';
+    const titleText = prizeTitle || 'جائزة الانضباط';
+
+    if (titleText.includes('تحسن')) {
+      icon = 'trophy';
+      description = 'مُنحت للطالب لتميزه وتحسن أدائه وحفظه خلال الأسبوع.';
+    } else if (titleText.includes('انضباط') || titleText.includes('مواظبة')) {
+      icon = 'medal';
+      description = 'مُنحت للطالب لمواظبته وانضباطه المتميز في الحلقة.';
+    } else if (titleText.includes('تفوق') || titleText.includes('تاج') || titleText.includes('بطل')) {
+      icon = 'crown';
+      description = 'مُنحت للطالب لتميزه الاستثنائي وتفوقه الكبير في الحفظ والمراجعة.';
+    } else {
+      icon = 'star';
+      description = 'مُنحت للطالب تشجيعاً وتقديراً لجهوده الطيبة في الحلقة.';
+    }
+
+    const prize = await Prize.create({
       studentId,
-      title: prizeTitle || 'جائزة الانضباط',
-      date: new Date()
+      title: titleText,
+      description,
+      date: new Date(),
+      icon
     });
+
+    // Notify parent
+    try {
+      await syncPushTokensFromSupabase();
+      const student = await Student.findByPk(studentId, {
+        include: [{
+          model: User,
+          as: 'parent',
+          attributes: ['_id', 'pushToken', 'fullName']
+        }]
+      });
+
+      if (student && student.parent && student.parent.pushToken) {
+        const title = `🏆 جائزة جديدة لـ ${student.name}`;
+        const body = `يسرنا إبلاغكم بأن ابنكم ${student.name} حصل على "${titleText}". بارك الله فيه وزاده توفيقًا.`;
+        
+        await sendPushNotification([student.parent.pushToken], title, body, {
+          studentId: String(student._id),
+          type: 'prize',
+          prizeId: String(prize.id)
+        });
+      }
+    } catch (notifErr) {
+      console.error('Failed to send prize notification:', notifErr);
+    }
 
     res.json({ success: true, message: 'تم تسليم الجائزة بنجاح' });
   } catch (error) {
@@ -388,27 +439,9 @@ const getRecentPrizes = async (req, res) => {
   }
 };
 
-const getWeekRange = (baseDateObj, offsetWeeks) => {
-  const satDate = new Date(baseDateObj);
-  satDate.setDate(baseDateObj.getDate() + (offsetWeeks * 7) - 7);
-  
-  const thuDate = new Date(baseDateObj);
-  thuDate.setDate(baseDateObj.getDate() + (offsetWeeks * 7) - 2);
-
-  const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  
-  return {
-    startDate: toDateStr(satDate),
-    endDate: toDateStr(thuDate)
-  };
-};
-
-/**
- * جلب الطلاب المؤهلين لجوائز التحسن
- */
 const getImprovementAwards = async (req, res) => {
   try {
-    const { date } = req.query; // YYYY-MM-DD (السبت المطلوب تقييمه)
+    const { date } = req.query;
     if (!date) {
       return res.status(400).json({ success: false, message: 'التاريخ مطلوب' });
     }
@@ -416,15 +449,32 @@ const getImprovementAwards = async (req, res) => {
     const [y, m, d] = date.split('-').map(Number);
     const dateObj = new Date(y, m - 1, d);
 
-    // حساب نطاق الأسبوع الحالي والأسبوع السابق
-    const currentWeek = getWeekRange(dateObj, 0);
-    const prevWeek = getWeekRange(dateObj, -1);
+    // Current Week (Saturday to Thursday)
+    const currentStartObj = new Date(dateObj);
+    currentStartObj.setDate(dateObj.getDate() - 7);
+    const currentEndObj = new Date(dateObj);
+    currentEndObj.setDate(dateObj.getDate() - 2);
 
+    // Previous Week (Saturday to Thursday of previous week)
+    const prevStartObj = new Date(dateObj);
+    prevStartObj.setDate(dateObj.getDate() - 14);
+    const prevEndObj = new Date(dateObj);
+    prevEndObj.setDate(dateObj.getDate() - 9);
+
+    const toDateStr = (dObj) => {
+      return `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
+    };
+
+    const currentStart = toDateStr(currentStartObj);
+    const currentEnd = toDateStr(currentEndObj);
+    const prevStart = toDateStr(prevStartObj);
+    const prevEnd = toDateStr(prevEndObj);
+
+    // Get all active students with dailyTarget <= 2
     const Student = require('../models/Student');
-    const DailyTracking = require('../models/DailyTracking');
     const Halaqa = require('../models/Halaqa');
+    const DailyTracking = require('../models/DailyTracking');
 
-    // جلب الطلاب الذين قسطهم اليومي صفحتين أو أقل
     const students = await Student.findAll({
       where: {
         isActive: true,
@@ -441,76 +491,74 @@ const getImprovementAwards = async (req, res) => {
 
     const studentIds = students.map(s => s._id);
 
-    // جلب سجلات المتابعة للأسبوع الحالي
-    const currentTrackings = await DailyTracking.findAll({
+    // Fetch tracking data for both weeks
+    const trackings = await DailyTracking.findAll({
       where: {
-        studentId: { [Op.in]: studentIds },
-        date: { [Op.between]: [currentWeek.startDate, currentWeek.endDate] },
-        attendance: 'present'
+        studentId: {
+          [Op.in]: studentIds
+        },
+        date: {
+          [Op.between]: [prevStart, currentEnd]
+        }
       }
     });
 
-    // جلب سجلات المتابعة للأسبوع السابق
-    const prevTrackings = await DailyTracking.findAll({
-      where: {
-        studentId: { [Op.in]: studentIds },
-        date: { [Op.between]: [prevWeek.startDate, prevWeek.endDate] },
-        attendance: 'present'
-      }
-    });
-
-    // تجميع الصفحات المنجزة حسب الطالب للأسبوع الحالي
-    const currentSum = {};
-    currentTrackings.forEach(t => {
+    // Process tracking data
+    const trackingMap = {};
+    trackings.forEach(t => {
       const sid = t.studentId;
-      currentSum[sid] = (currentSum[sid] || 0) + Number(t.pagesMemorized || 0);
-    });
-
-    // تجميع الصفحات المنجزة حسب الطالب للأسبوع السابق
-    const prevSum = {};
-    prevTrackings.forEach(t => {
-      const sid = t.studentId;
-      prevSum[sid] = (prevSum[sid] || 0) + Number(t.pagesMemorized || 0);
-    });
-
-    // تصنيف الطلاب المؤهلين لجوائز التحسن
-    const level1Winners = []; // 9 صفحات أو أكثر هذا الأسبوع
-    const level2Winners = []; // 14 صفحة أو أكثر هذا الأسبوع بشرط أن يكون الأسبوع السابق قد أنجز 9 أو أكثر
-
-    students.forEach(st => {
-      const sid = st._id;
-      const currentPages = currentSum[sid] || 0;
-      const prevPages = prevSum[sid] || 0;
-
-      // جائزة المستوى 2: 14 صفحة أو أكثر، مع تحسن لا يقل عن 5 صفحات عن المستوى الأول للأسبوع السابق
-      if (currentPages >= 14 && prevPages >= 9) {
-        level2Winners.push({
-          student: st,
-          currentPages,
-          prevPages,
-          type: 'level2',
-          title: 'جائزة تحسن - مستوى 2 (إنجاز 14 صفحة بزيادة 5 صفحات)'
-        });
+      if (!trackingMap[sid]) {
+        trackingMap[sid] = [];
       }
-      // جائزة المستوى 1: 9 صفحات أو أكثر
-      else if (currentPages >= 9) {
-        level1Winners.push({
-          student: st,
-          currentPages,
-          prevPages,
-          type: 'level1',
-          title: 'جائزة تحسن - مستوى 1 (إنجاز 9 صفحات)'
+      trackingMap[sid].push(t);
+    });
+
+    const winners = [];
+
+    students.forEach(student => {
+      const studentTrackings = trackingMap[student._id] || [];
+      
+      let prevTotal = 0;
+      let currentTotal = 0;
+
+      studentTrackings.forEach(t => {
+        const pages = Number(t.pagesMemorized || 0);
+        const attendance = t.attendance || 'present';
+        
+        if (attendance === 'present') {
+          if (t.date >= prevStart && t.date <= prevEnd) {
+            prevTotal += pages;
+          } else if (t.date >= currentStart && t.date <= currentEnd) {
+            currentTotal += pages;
+          }
+        }
+      });
+
+      // الطالب الذي قسطه صفحتين أو أقل يترشح في حالتين:
+      // 1. حقق 9 صفحات فما فوق هذا الأسبوع.
+      // 2. أو حقق 14 صفحة هذا الأسبوع وكان قد حقق 9 صفحات في الأسبوع السابق (وهي مشمولة تلقائياً في الأولى، ولكن نحددها بـ isRaised لتمييز التحسن).
+      if (currentTotal >= 9) {
+        const isRaised = currentTotal >= 14 && prevTotal >= 9;
+        winners.push({
+          _id: student._id,
+          name: student.name,
+          halaqaName: student.halaqa?.name || '—',
+          dailyTarget: student.dailyTarget,
+          prevTotal,
+          currentTotal,
+          isRaised
         });
       }
     });
 
     res.json({
       success: true,
-      currentWeek,
-      prevWeek,
       data: {
-        level1: level1Winners,
-        level2: level2Winners
+        winners,
+        ranges: {
+          current: { start: currentStart, end: currentEnd },
+          prev: { start: prevStart, end: prevEnd }
+        }
       }
     });
   } catch (error) {
