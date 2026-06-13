@@ -8,6 +8,7 @@ import { Users, ChevronLeft, LogOut, BookOpen, Star, Settings, Sun, Moon, Award,
 import * as Haptics from 'expo-haptics';
 import { spacing, radius, cardShadow } from '../constants/layout';
 import { EmptyState } from '../components/ui/EmptyState';
+import { cleanStudentName } from '../utils/name';
 
 const LEVEL_TRANSLATIONS: { [key: string]: string } = {
   level1: 'المستوى الأول',
@@ -107,6 +108,7 @@ export default function HomeScreen() {
 
   const renderStudent = ({ item }: { item: any }) => {
     const levelStyle = LEVEL_COLORS[item.level] || { border: colors.primary, bg: colors.primaryBg, text: colors.primary };
+    const displayName = cleanStudentName(item.name, user?.fullName || '');
     
     return (
       <TouchableOpacity
@@ -124,7 +126,7 @@ export default function HomeScreen() {
           </View>
           
           <View style={styles.studentInfo}>
-            <Text style={styles.studentName}>{item.name}</Text>
+            <Text style={styles.studentName}>{displayName}</Text>
             <View style={{ flexDirection: 'row-reverse', gap: 6, marginTop: 6, alignItems: 'center' }}>
               <View style={[styles.levelBadge, { backgroundColor: levelStyle.bg, marginTop: 0 }]}>
                 <Award size={13} color={levelStyle.border} />
@@ -142,7 +144,7 @@ export default function HomeScreen() {
           </View>
           
           <View style={[styles.avatar, { backgroundColor: levelStyle.border }]}>
-            <Text style={styles.avatarText}>{item.name ? item.name[0] : 'أ'}</Text>
+            <Text style={styles.avatarText}>{displayName ? displayName[0] : 'أ'}</Text>
           </View>
         </View>
 

@@ -304,10 +304,44 @@ const getAllTrackingRange = async (req, res) => {
   }
 };
 
+// ─── إجمالي تراكمي لكل طالب في حلقة (منذ البداية) ─────────────────
+const getHalaqaCumulativeTotals = async (req, res) => {
+  try {
+    const { halaqaId } = req.params;
+
+    // جلب كل سجلات الطلاب الفعّالين في هذه الحلقة (بدون قيد تاريخ)
+    const records = await DailyTracking.findAll({
+      attributes: ['studentId', 'pagesMemorized', 'attendance'],
+      include: [{
+        model: Student,
+        as: 'student',
+        attributes: ['_id', 'name'],
+        where: { halaqaId, isActive: true },
+        required: true,
+      }],
+    });
+
+    // تجميع الصفحات لكل طالب (نستثني الغياب)
+    const totalsMap = {};
+    for (const rec of records) {
+      const sid = rec.studentId;
+      if (!totalsMap[sid]) totalsMap[sid] = 0;
+      if (rec.attendance !== 'absent') {
+        totalsMap[sid] += Number(rec.pagesMemorized) || 0;
+      }
+    }
+
+    res.json({ success: true, data: totalsMap });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   bulkInsertTracking,
   getStudentTracking,
   getHalaqaTracking,
   deleteHalaqaTrackingByDate,
   getAllTrackingRange,
+  getHalaqaCumulativeTotals,
 };

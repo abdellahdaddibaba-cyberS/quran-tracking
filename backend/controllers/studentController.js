@@ -55,19 +55,175 @@ const getStudentById = async (req, res) => {
   }
 };
 
+// ─── دالة مساعدة لاستخراج اسم الأب من اسم الطالب ──────────────────
+const extractFatherName = (studentName) => {
+  if (!studentName || !String(studentName).trim()) return '';
+  const name = String(studentName).trim();
+  
+  // 1. التحقق مما إذا كان الاسم يحتوي على " بن " أو " ابن "
+  const binRegex = /\s+(?:بن|ابن)\s+/i;
+  if (binRegex.test(name)) {
+    const parts = name.split(binRegex);
+    if (parts.length > 1 && parts[1].trim()) {
+      return parts.slice(1).join(' ').trim();
+    }
+  }
+
+  // 2. تقسيم الاسم حسب المسافات
+  const parts = name.split(/\s+/);
+  if (parts.length > 1) {
+    // التحقق مما إذا كان الاسم الأول مركباً (مثل "عبد الرحمن"، "أبو بكر"، "صلاح الدين")
+    const isCompoundStart = parts[0] === 'عبد' || parts[0] === 'أبو' || parts[0] === 'ابو' || parts[0] === 'أم' || parts[0] === 'ام';
+    const isCompoundEnd = parts[1] === 'الدين' || parts[1] === 'الله' || parts[1] === 'الاسلام' || parts[1] === 'الزهراء';
+    
+    if ((isCompoundStart || isCompoundEnd) && parts.length > 2) {
+      return parts.slice(2).join(' ').trim();
+    }
+    // إرجاع بقية أجزاء الاسم بعد الاسم الأول
+    return parts.slice(1).join(' ').trim();
+  }
+
+  return `والد ${name}`;
+};
+
+// ─── دالة مساعدة للبحث عن ولي الأمر أو إنشائه تلقائياً ───────────────
+const getOrCreateParent = async (pName, pPhone, transaction) => {
+  if (!pName || !String(pName).trim()) return null;
+
+  const name = String(pName).trim();
+  const phone = pPhone ? String(pPhone).trim() : '';
+
+  const normalizeArabic = (str) => {
+    if (!str) return '';
+    return String(str)
+      .trim()
+      .toLowerCase()
+      .replace(/[أإآ]/g, 'ا')
+      .replace(/ة/g, 'ه')
+      .replace(/\s+/g, '');
+  };
+
+  const normPhone = phone ? phone.trim().replace(/\s+/g, '') : '';
+  const normName = normalizeArabic(name);
+
+  // البحث في أولياء الأمور الحاليين لتجنب التكرار
+  const existingParents = await User.findAll({
+    where: { role: 'parent' },
+    transaction
+  });
+
+  let matchedParent = null;
+  if (normPhone) {
+    matchedParent = existingParents.find(p => {
+      const pPhoneNorm = p.phoneNumber ? p.phoneNumber.trim().replace(/\s+/g, '') : '';
+      const pUsernameNorm = p.username ? p.username.trim().replace(/\s+/g, '') : '';
+      return pPhoneNorm === normPhone || pUsernameNorm === normPhone;
+    });
+  }
+  if (!matchedParent) {
+    matchedParent = existingParents.find(p => p.fullName && normalizeArabic(p.fullName) === normName);
+  }
+
+  if (matchedParent) {
+    // Update phone number if it wasn't set before
+    if (phone && !matchedParent.phoneNumber) {
+      await matchedParent.update({ phoneNumber: phone }, { transaction });
+    }
+    return { parent: matchedParent, isNew: false };
+  }
+
+  // توليد اسم مستخدم فريد من رقم الهاتف أو اسم الأب
+  let username;
+  if (phone) {
+    username = phone.trim().replace(/\s+/g, '');
+  } else {
+    let baseUsername = name.replace(/\s+/g, '_');
+    baseUsername = baseUsername.replace(/[^\u0600-\u06FFa-zA-Z0-9_]/g, '');
+    if (!baseUsername) {
+      baseUsername = 'parent';
+    }
+    username = baseUsername;
+  }
+
+  let finalUsername = username;
+  let isUnique = false;
+  let counter = 0;
+
+  while (!isUnique) {
+    const checkName = counter === 0 ? finalUsername : `${finalUsername}_${counter}`;
+    const isTaken = await User.findOne({ where: { username: checkName }, transaction });
+    if (!isTaken) {
+      finalUsername = checkName;
+      isUnique = true;
+    } else {
+      counter++;
+    }
+  }
+
+  const newParent = await User.create({
+    username: finalUsername,
+    password: '123456', // كلمة المرور الافتراضية
+    fullName: name,
+    role: 'parent',
+    phoneNumber: phone || null,
+    isActive: true
+  }, { transaction });
+
+  return { parent: newParent, isNew: true };
+};
+
 // ─── إضافة طالب ───────────────────────────────────────────────────
 const createStudent = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const student = await Student.create(req.body);
+    const studentData = { ...req.body };
+    let parentCreated = null;
+
+    // التحقق مما إذا كان قد تم تمرير اسم ولي الأمر لإنشائه تلقائياً أو استخراجه من اسم الطالب
+    if (!studentData.parentId) {
+      let pName = studentData.parentName ? String(studentData.parentName).trim() : '';
+      if (!pName && studentData.name) {
+        pName = extractFatherName(studentData.name);
+      }
+      if (pName) {
+        const result = await getOrCreateParent(pName, studentData.parentPhone, transaction);
+        if (result) {
+          studentData.parentId = result.parent._id;
+          if (result.isNew) {
+            parentCreated = result.parent;
+          }
+        }
+      }
+    }
+
+    const student = await Student.create(studentData, { transaction });
+    await transaction.commit();
+
     const populated = await Student.findByPk(student._id, {
-      include: [{
-        model: Halaqa,
-        as: 'halaqa',
-        attributes: ['name', 'supervisor']
-      }]
+      include: [
+        {
+          model: Halaqa,
+          as: 'halaqa',
+          attributes: ['name', 'supervisor']
+        },
+        {
+          model: User,
+          as: 'parent',
+          attributes: ['_id', 'fullName', 'username', 'phoneNumber']
+        }
+      ]
     });
-    res.status(201).json({ success: true, data: populated });
+
+    res.status(201).json({ 
+      success: true, 
+      data: populated,
+      parentCreated: parentCreated ? {
+        fullName: parentCreated.fullName,
+        username: parentCreated.username
+      } : null
+    });
   } catch (error) {
+    await transaction.rollback();
     res.status(400).json({ success: false, message: error.message });
   }
 };
@@ -107,64 +263,80 @@ const createBulkStudents = async (req, res) => {
       const student = { ...studentData };
       let parentId = student.parentId;
 
-      // إذا لم يكن لدى الطالب parentId ولكن لديه اسم ولي أمر، نحاول ربطه أو إنشائه
-      if (!parentId && student.parentName && String(student.parentName).trim()) {
-        const pName = String(student.parentName).trim();
-        const pPhone = student.parentPhone ? String(student.parentPhone).trim() : '';
-
-        // 1. البحث في الكاش المحلي (الذي يضم أولياء الأمور الحاليين والجدد المنشئين في هذه الدفعة)
-        let matchedParent = null;
-        const normPhone = normalizeArabic(pPhone);
-        const normName = normalizeArabic(pName);
-
-        if (normPhone) {
-          matchedParent = parentCache.find(p => p.phoneNumber && normalizeArabic(p.phoneNumber) === normPhone);
-        }
-        if (!matchedParent) {
-          matchedParent = parentCache.find(p => p.fullName && normalizeArabic(p.fullName) === normName);
+      // إذا لم يكن لدى الطالب parentId، نحاول ربطه أو إنشائه تلقائياً من اسم الأب
+      if (!parentId) {
+        let pName = student.parentName ? String(student.parentName).trim() : '';
+        if (!pName && student.name) {
+          pName = extractFatherName(student.name);
         }
 
-        if (matchedParent) {
-          parentId = matchedParent._id;
-        } else {
-          // 2. إذا لم نعثر عليه، نقوم بإنشاء ولي أمر جديد
-          // توليد اسم مستخدم فريد من اسم الأب باللغة العربية
-          let baseUsername = pName.trim().replace(/\s+/g, '_');
-          // إزالة أي رموز غير مرغوب فيها، مع الإبقاء على الحروف العربية، اللاتينية، الأرقام والشرطة السفلية
-          baseUsername = baseUsername.replace(/[^\u0600-\u06FFa-zA-Z0-9_]/g, '');
+        if (pName) {
+          const pPhone = student.parentPhone ? String(student.parentPhone).trim() : '';
 
-          if (!baseUsername) {
-            baseUsername = 'parent';
+          // 1. البحث في الكاش المحلي (الذي يضم أولياء الأمور الحاليين والجدد المنشئين في هذه الدفعة)
+          let matchedParent = null;
+          const normPhone = pPhone ? pPhone.trim().replace(/\s+/g, '') : '';
+          const normName = normalizeArabic(pName);
+
+          if (normPhone) {
+            matchedParent = parentCache.find(p => {
+              const pPhoneNorm = p.phoneNumber ? p.phoneNumber.trim().replace(/\s+/g, '') : '';
+              const pUsernameNorm = p.username ? p.username.trim().replace(/\s+/g, '') : '';
+              return pPhoneNorm === normPhone || pUsernameNorm === normPhone;
+            });
+          }
+          if (!matchedParent) {
+            matchedParent = parentCache.find(p => p.fullName && normalizeArabic(p.fullName) === normName);
           }
 
-          let username = baseUsername;
-          let isUnique = false;
-          let counter = 0;
-          
-          while (!isUnique) {
-            const checkName = counter === 0 ? username : `${username}_${counter}`;
-            const isTaken = parentCache.some(p => p.username === checkName) ||
-                            await User.findOne({ where: { username: checkName }, transaction });
-            if (!isTaken) {
-              username = checkName;
-              isUnique = true;
-            } else {
-              counter++;
+          if (matchedParent) {
+            parentId = matchedParent._id;
+            // Update phone number if it wasn't set before
+            if (pPhone && !matchedParent.phoneNumber) {
+              matchedParent.phoneNumber = pPhone;
+              await matchedParent.save({ transaction });
             }
+          } else {
+            // 2. إذا لم نعثر عليه، نقوم بإنشاء ولي أمر جديد
+            let username;
+            if (pPhone) {
+              username = pPhone.trim().replace(/\s+/g, '');
+            } else {
+              let baseUsername = pName.trim().replace(/\s+/g, '_');
+              baseUsername = baseUsername.replace(/[^\u0600-\u06FFa-zA-Z0-9_]/g, '');
+              if (!baseUsername) baseUsername = 'parent';
+              username = baseUsername;
+            }
+
+            let finalUsername = username;
+            let isUnique = false;
+            let counter = 0;
+            
+            while (!isUnique) {
+              const checkName = counter === 0 ? finalUsername : `${finalUsername}_${counter}`;
+              const isTaken = parentCache.some(p => p.username === checkName) ||
+                              await User.findOne({ where: { username: checkName }, transaction });
+              if (!isTaken) {
+                finalUsername = checkName;
+                isUnique = true;
+              } else {
+                counter++;
+              }
+            }
+
+            const newParent = await User.create({
+              username: finalUsername,
+              password: '123456', // كلمة المرور الافتراضية
+              fullName: pName,
+              role: 'parent',
+              phoneNumber: pPhone || null,
+              isActive: true
+            }, { transaction });
+
+            parentCache.push(newParent);
+            parentId = newParent._id;
+            parentsCreatedCount++;
           }
-
-          const newParent = await User.create({
-            username,
-            password: '123456', // كلمة المرور الافتراضية
-            fullName: pName,
-            role: 'parent',
-            phoneNumber: pPhone || null,
-            isActive: true
-          }, { transaction });
-
-          parentCache.push(newParent);
-          parentId = newParent._id;
-          parentsCreatedCount++;
         }
       }
 
@@ -189,24 +361,62 @@ const createBulkStudents = async (req, res) => {
 
 // ─── تعديل طالب ───────────────────────────────────────────────────
 const updateStudent = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const student = await Student.findByPk(req.params.id);
+    const student = await Student.findByPk(req.params.id, { transaction });
     if (!student) {
+      await transaction.rollback();
       return res.status(404).json({ success: false, message: 'الطالب غير موجود' });
     }
 
-    await student.update(req.body);
+    const studentData = { ...req.body };
+    let parentCreated = null;
+
+    // التحقق مما إذا كان قد تم تمرير اسم ولي الأمر لإنشائه تلقائياً أو استخراجه من اسم الطالب
+    if (!studentData.parentId) {
+      let pName = studentData.parentName ? String(studentData.parentName).trim() : '';
+      if (!pName && studentData.name) {
+        pName = extractFatherName(studentData.name);
+      }
+      if (pName) {
+        const result = await getOrCreateParent(pName, studentData.parentPhone, transaction);
+        if (result) {
+          studentData.parentId = result.parent._id;
+          if (result.isNew) {
+            parentCreated = result.parent;
+          }
+        }
+      }
+    }
+
+    await student.update(studentData, { transaction });
+    await transaction.commit();
 
     const updated = await Student.findByPk(student._id, {
-      include: [{
-        model: Halaqa,
-        as: 'halaqa',
-        attributes: ['name', 'supervisor']
-      }]
+      include: [
+        {
+          model: Halaqa,
+          as: 'halaqa',
+          attributes: ['name', 'supervisor']
+        },
+        {
+          model: User,
+          as: 'parent',
+          attributes: ['_id', 'fullName', 'username', 'phoneNumber']
+        }
+      ]
     });
 
-    res.json({ success: true, data: updated });
+    res.json({ 
+      success: true, 
+      data: updated,
+      parentCreated: parentCreated ? {
+        fullName: parentCreated.fullName,
+        username: parentCreated.username
+      } : null
+    });
   } catch (error) {
+    await transaction.rollback();
     res.status(400).json({ success: false, message: error.message });
   }
 };
@@ -304,14 +514,14 @@ const getSwimmingSchedule = async (req, res) => {
       return res.json({ success: true, data: studentIds });
     }
 
-    // التحقق مما إذا كان اليوم هو السبت وبدءاً من الأسبوع الثاني (27 جوان 2026 فما فوق)
+    // التحقق مما إذا كان اليوم هو السبت وبدءاً من الأسبوع الأول (20 جوان 2026 فما فوق)
     const [y, m, d] = date.split('-').map(Number);
     const dateObj = new Date(y, m - 1, d);
     const isSaturday = dateObj.getDay() === 6;
-    const isFromWeekTwo = date >= '2026-06-27';
+    const isFromWeekOne = date >= '2026-06-20';
 
-    // إذا لم يكن هناك سجلات محفوظة مسبقاً (أو تم طلب auto=true) وكان التاريخ هو سبت بدءاً من الأسبوع الثاني، نقوم بالتوليد التلقائي
-    if ((schedules.length === 0 || auto === 'true') && isSaturday && isFromWeekTwo) {
+    // إذا لم يكن هناك سجلات محفوظة مسبقاً (أو تم طلب auto=true) وكان التاريخ هو سبت بدءاً من الأسبوع الأول، نقوم بالتوليد التلقائي
+    if ((schedules.length === 0 || auto === 'true') && isSaturday && isFromWeekOne) {
       // حساب نطاق الأسبوع (السبت السابق إلى الخميس الحالي)
       const prevSatDate = new Date(dateObj);
       prevSatDate.setDate(dateObj.getDate() - 7);
@@ -363,7 +573,8 @@ const getSwimmingSchedule = async (req, res) => {
           }
         });
 
-        const targetScore = Number(student.dailyTarget || 1) * 6;
+        const targetMultiplier = date === '2026-06-20' ? 5 : 6;
+        const targetScore = Number(student.dailyTarget || 1) * targetMultiplier;
         const achievementScore = memorizedSum + (surahCompletions * 0.5 * Number(student.dailyTarget || 1));
 
         if (achievementScore >= targetScore) {
@@ -422,7 +633,6 @@ const getWeeklySwimmingSchedule = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
 
 // ─── حفظ جدول السباحة لتاريخ معين ────────────────────────────────────
 const saveSwimmingSchedule = async (req, res) => {

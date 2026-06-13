@@ -7,20 +7,11 @@ const { Client } = require('pg');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
-// التحقق من المتغيرات المطلوبة
+// قائمة المتغيرات المطلوبة — يتم التحقق منها داخل runSync() لتجنب إيقاف السيرفر
 const requiredEnv = [
   'PG_HOST', 'PG_PORT', 'PG_USER', 'PG_PASSWORD', 'PG_DB',
   'SUPABASE_DB_URL'
 ];
-
-const missing = requiredEnv.filter(key => !process.env[key]);
-if (missing.length > 0) {
-  console.error('❌ خطأ: المتغيرات التالية مفقودة في ملف .env:');
-  console.error(missing.join(', '));
-  console.log('\nيرجى إضافة تكوين Supabase إلى ملف .env أولاً. مثال:');
-  console.log('SUPABASE_DB_URL=postgresql://postgres:password@db.xxxx.supabase.co:5432/postgres\n');
-  process.exit(1);
-}
 
 // قائمة الجداول بالترتيب الصحيح لتفادي مشاكل المفاتيح الخارجية
 // TABLES TO SYNC IN DEPENDENCY ORDER (Insert/Upsert Order)
@@ -73,6 +64,14 @@ async function updateSequence(client, tableName, primaryKey) {
  * تشغيل عملية المزامنة
  */
 async function runSync() {
+  // التحقق من المتغيرات عند الاستدعاء الفعلي (وليس عند تحميل الموديول)
+  const missing = requiredEnv.filter(key => !process.env[key]);
+  if (missing.length > 0) {
+    const msg = `متغيرات مفقودة في .env: ${missing.join(', ')}`;
+    console.error('❌', msg);
+    throw new Error(msg);
+  }
+
   const startTime = Date.now();
   console.log(`\n==================================================`);
   console.log(`🔄 بدء عملية المزامنة: ${new Date().toLocaleString()}`);
@@ -132,6 +131,18 @@ async function runSync() {
           "ipAddress" VARCHAR(255),
           "userAgent" TEXT,
           "loginTime" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL
+        );
+      `);
+      await supabaseClient.query(`
+        CREATE TABLE IF NOT EXISTS prizes (
+          "id" SERIAL PRIMARY KEY,
+          "studentId" INTEGER NOT NULL,
+          "title" VARCHAR(255) NOT NULL,
+          "description" TEXT,
+          "date" DATE NOT NULL DEFAULT CURRENT_DATE,
+          "icon" VARCHAR(255) DEFAULT 'star',
           "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL,
           "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL
         );
@@ -269,9 +280,10 @@ async function runSync() {
 
   } catch (error) {
     console.error(`\n❌ حدث خطأ أثناء المزامنة:`, error.message);
+    throw error; // إعادة رمي الخطأ حتى يستطيع الـ route إرجاع HTTP 500
   } finally {
-    await localClient.end();
-    await supabaseClient.end();
+    try { await localClient.end(); } catch (_) {}
+    try { await supabaseClient.end(); } catch (_) {}
   }
 }
 

@@ -25,12 +25,14 @@ const levelClass = (v) => {
 // ─── Student Modal ────────────────────────────────────────────────
 function StudentModal({ student, halaqat, parents, onClose, onSave }) {
   const [form, setForm] = useState({
-    name:        student?.name        || '',
-    level:       student?.level       || 'level1',
-    startSurah:  student?.startSurah  || '',
+    name: student?.name || '',
+    level: student?.level || 'level1',
+    startSurah: student?.startSurah || '',
     dailyTarget: student?.dailyTarget || 1,
-    halaqaId:    student?.halaqaId?._id || student?.halaqaId || '',
-    parentId:    student?.parentId?._id || student?.parentId || '',
+    halaqaId: student?.halaqaId?._id || student?.halaqaId || '',
+    parentId: student?.parentId?._id || student?.parentId || '',
+    parentName: '',
+    parentPhone: '',
   });
   const [saving, setSaving] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -39,7 +41,7 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
 
   const set = (k, v) => {
     setForm(p => ({ ...p, [k]: v }));
-    
+
     // منطق الاقتراحات عند كتابة السورة
     if (k === 'startSurah') {
       setSelectedIndex(-1);
@@ -56,7 +58,7 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
 
   const handleKeyDown = (e) => {
     if (!showSuggestions || suggestions.length === 0) return;
-    
+
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex(prev => (prev < suggestions.length - 1 ? prev + 1 : prev));
@@ -84,11 +86,16 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
     }
     setSaving(true);
     try {
+      const payload = { ...form };
+      if (payload.parentId) {
+        delete payload.parentName;
+        delete payload.parentPhone;
+      }
       if (student) {
-        await studentsAPI.update(student._id, form);
+        await studentsAPI.update(student._id, payload);
         toast.success('تم تعديل بيانات الطالب ✅');
       } else {
-        await studentsAPI.create(form);
+        await studentsAPI.create(payload);
         toast.success('تم إضافة الطالب بنجاح ✅');
       }
       onSave();
@@ -116,9 +123,9 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
               </div>
               <div className="form-group" style={{ position: 'relative' }}>
                 <label className="form-label">بداية السورة *</label>
-                <input 
-                  className="form-control" 
-                  placeholder="مثال: البقرة" 
+                <input
+                  className="form-control"
+                  placeholder="مثال: البقرة"
                   value={form.startSurah}
                   autoComplete="off"
                   onChange={e => set('startSurah', e.target.value)}
@@ -126,7 +133,7 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                   onFocus={() => form.startSurah && setSuggestions(SURAHS.filter(s => s.includes(form.startSurah)).slice(0, 5))}
                 />
-                
+
                 {/* قائمة المقترحات الذكية */}
                 {showSuggestions && suggestions.length > 0 && (
                   <div style={{
@@ -137,10 +144,10 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
                     overflow: 'hidden', animation: 'fadeInDown 0.2s ease-out'
                   }}>
                     {suggestions.map((s, index) => (
-                      <div 
-                        key={s} 
-                        style={{ 
-                          padding: '0.6rem 1rem', cursor: 'pointer', 
+                      <div
+                        key={s}
+                        style={{
+                          padding: '0.6rem 1rem', cursor: 'pointer',
                           fontSize: '0.85rem', color: 'var(--text-primary)',
                           background: index === selectedIndex ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
                           transition: 'background 0.2s', borderBottom: '1px solid var(--border)'
@@ -193,6 +200,20 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
                 </select>
               </div>
             </div>
+            {!form.parentId && (
+              <div className="form-row animate-fade-in" style={{ marginTop: '1rem', borderTop: '1px dashed var(--border)', paddingTop: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label">الاسم الكامل للاب (لإنشاء الحساب)</label>
+                  <input className="form-control" placeholder="اسم الأب الكامل" value={form.parentName}
+                    onChange={e => set('parentName', e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">رقم الهاتف للاب (اسم المستخدم)</label>
+                  <input className="form-control" placeholder="مثال: 0666112233" value={form.parentPhone}
+                    onChange={e => set('parentPhone', e.target.value)} />
+                </div>
+              </div>
+            )}
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose}>إلغاء</button>
@@ -217,12 +238,32 @@ const normalizeArabicKey = (str) => {
     .replace(/\s+/g, '');
 };
 
-// دالة لجلب القيمة من السطر بناءً على المفاتيح المحتملة
-const getExcelValue = (row, possibleKeys) => {
+// دالة لجلب القيمة من السطر بناءً على المفاتيح المحتملة بشكل مرن وذكي
+const getExcelValue = (row, possibleKeys, type) => {
   const normalizedPossibles = possibleKeys.map(normalizeArabicKey);
   for (const key of Object.keys(row)) {
-    if (normalizedPossibles.includes(normalizeArabicKey(key))) {
-      return row[key];
+    const normKey = normalizeArabicKey(key);
+
+    // فحص الفئة لضمان عدم الخلط بين اسم الطالب واسم الأب
+    if (type === 'studentName') {
+      if (normKey.includes('اب') || normKey.includes('أب') || normKey.includes('ولي') || normKey.includes('والد')) {
+        continue;
+      }
+    } else if (type === 'parentName') {
+      if (!normKey.includes('اب') && !normKey.includes('أب') && !normKey.includes('ولي') && !normKey.includes('والد')) {
+        continue;
+      }
+    } else if (type === 'phone') {
+      if (!normKey.includes('هاتف') && !normKey.includes('جوال') && !normKey.includes('رقم')) {
+        continue;
+      }
+    }
+
+    // مطابقة كاملة أو جزئية
+    for (const pKey of normalizedPossibles) {
+      if (normKey === pKey || normKey.includes(pKey) || pKey.includes(normKey)) {
+        return row[key];
+      }
     }
   }
   return '';
@@ -258,10 +299,10 @@ function ExcelImportModal({ halaqat, parents, onClose, onSave }) {
         }
 
         const students = rows.map((row) => {
-          const name = String(getExcelValue(row, ['الاسم', 'اسم الطالب', 'الطالب']) || '').trim();
+          const name = String(getExcelValue(row, ['الاسم الكامل', 'الاسم', 'اسم الطالب', 'الطالب'], 'studentName') || '').trim();
           const startSurah = String(getExcelValue(row, ['بداية السورة', 'السورة', 'سورة البداية']) || '').trim();
           const dailyTargetStr = getExcelValue(row, ['القسط', 'القسط اليومي', 'الصفحات', 'عدد الصفحات', 'المقدار']);
-          const dailyTarget = dailyTargetStr ? Number(dailyTargetStr) : 1;
+          const dailyTarget = dailyTargetStr ? Number(dailyTargetStr) : 3;
 
           let levelStr = String(getExcelValue(row, ['المستوى', 'مستوى']) || 'الأول');
           let level = 'level1';
@@ -269,16 +310,20 @@ function ExcelImportModal({ halaqat, parents, onClose, onSave }) {
           else if (levelStr.includes('ثالع') || levelStr.includes('ثالث') || levelStr === '3') level = 'level3';
           else if (levelStr.includes('رابع') || levelStr === '4') level = 'level4';
 
-          const parentName = String(getExcelValue(row, ['الاب', 'الأب', 'ولي الامر', 'ولي الأمر', 'اسم الاب', 'اسم ولي الامر', 'اسم ولي الأمر', 'الوالد', 'اسم الوالد']) || '').trim();
-          const parentPhone = String(getExcelValue(row, ['هاتف الاب', 'هاتف الأب', 'هاتف ولي الامر', 'هاتف ولي الأمر', 'رقم هاتف ولي الامر', 'رقم هاتف ولي الأمر', 'رقم الهاتف', 'الهاتف', 'رقم هاتف الاب', 'رقم هاتف الأب', 'جوال ولي الامر', 'جوال ولي الأمر', 'الجوال', 'رقم الجوال']) || '').trim();
+          const parentName = String(getExcelValue(row, ['الاسم الكامل للاب', 'الاسم الكامل للأب', 'الاب', 'الأب', 'ولي الامر', 'ولي الأمر', 'اسم الاب', 'اسم ولي الامر', 'اسم ولي الأمر', 'الوالد', 'اسم الوالد'], 'parentName') || '').trim();
+          const parentPhone = String(getExcelValue(row, ['رقم الهاتف', 'هاتف ولي الأمر', 'هاتف ولي الامر', 'هاتف الاب', 'هاتف الأب', 'رقم هاتف ولي الامر', 'رقم هاتف ولي الأمر', 'الهاتف', 'رقم هاتف الاب', 'رقم هاتف الأب', 'جوال ولي الامر', 'جوال ولي الأمر', 'الجوال', 'رقم الجوال'], 'phone') || '').trim();
 
           let parentId = null;
-          if (parentName) {
+          if (parentName || parentPhone) {
             const matchedParent = parents.find(p => {
-              const fullNameMatch = normalizeArabicKey(p.fullName) === normalizeArabicKey(parentName);
-              const phoneMatch = p.phoneNumber && normalizeArabicKey(p.phoneNumber) === normalizeArabicKey(parentPhone || parentName);
-              const usernameMatch = p.username && normalizeArabicKey(p.username) === normalizeArabicKey(parentName);
-              return fullNameMatch || phoneMatch || usernameMatch;
+              const normPPhone = p.phoneNumber ? p.phoneNumber.replace(/[^\d]/g, '') : '';
+              const normPUsername = p.username ? p.username.replace(/[^\d]/g, '') : '';
+              const normImportPhone = parentPhone ? parentPhone.replace(/[^\d]/g, '') : '';
+              
+              const phoneMatch = normImportPhone && (normPPhone === normImportPhone || normPUsername === normImportPhone);
+              const fullNameMatch = parentName && normalizeArabicKey(p.fullName) === normalizeArabicKey(parentName);
+              
+              return phoneMatch || fullNameMatch;
             });
             if (matchedParent) {
               parentId = matchedParent._id;
@@ -298,7 +343,7 @@ function ExcelImportModal({ halaqat, parents, onClose, onSave }) {
         }).filter(s => s.name && s.startSurah);
 
         if (students.length === 0) {
-          toast.error('لم يتم العثور على بيانات صحيحة في الملف. تأكد من العناوين (الاسم، بداية السورة)');
+          toast.error('لم يتم العثور على بيانات صحيحة في الملف. تأكد من العناوين (الاسم الكامل، بداية السورة)');
           setLoading(false);
           return;
         }
@@ -345,8 +390,8 @@ function ExcelImportModal({ halaqat, parents, onClose, onSave }) {
                 padding: '1.5rem', border: '2px dashed var(--border)', borderRadius: 'var(--radius-md)',
                 cursor: 'pointer', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s ease',
               }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--blue-500)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--blue-500)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
               >
                 <UploadCloud size={32} color="var(--blue-400)" style={{ marginBottom: '0.5rem' }} />
                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>
@@ -357,11 +402,11 @@ function ExcelImportModal({ halaqat, parents, onClose, onSave }) {
             </div>
             <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(59, 130, 246, 0.1)', borderRadius: 8, fontSize: '0.85rem', color: 'var(--blue-400)', lineHeight: '1.6' }}>
               <strong>أعمدة الإكسل (في الصف الأول):</strong><br />
-              - <code>الاسم</code> (إجباري)<br />
+              - <code>الاسم الكامل</code> (إجباري)<br />
               - <code>بداية السورة</code> (إجباري)<br />
-              - <code>القسط</code> (إجباري، رقم)<br />
+              - <code>القسط</code> (اختياري - افتراضياً: 3)<br />
               - <code>المستوى</code> (اختياري - افتراضياً: الأول)<br />
-              - <code>الأب</code> أو <code>ولي الأمر</code> (اختياري - لربطه أو إنشاء حساب له تلقائياً)<br />
+              - <code>الاسم الكامل للاب</code> (إجباري لإنشاء الحساب)<br />
               - <code>رقم الهاتف</code> أو <code>هاتف ولي الأمر</code> (اختياري - لرقم هاتف ولي الأمر واسم المستخدم الخاص به)
             </div>
           </div>
@@ -380,13 +425,13 @@ function ExcelImportModal({ halaqat, parents, onClose, onSave }) {
 // ─── Students Page ────────────────────────────────────────────────
 export default function Students() {
   const [students, setStudents] = useState([]);
-  const [halaqat, setHalaqat]   = useState([]);
-  const [parents, setParents]   = useState([]);
-  const [loading, setLoading]   = useState(true);
+  const [halaqat, setHalaqat] = useState([]);
+  const [parents, setParents] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [editItem, setEditItem]  = useState(null);
-  const [search, setSearch]      = useState('');
+  const [editItem, setEditItem] = useState(null);
+  const [search, setSearch] = useState('');
   const [searchParams] = useSearchParams();
   const initialHalaqa = searchParams.get('halaqaId') || '';
   const [filterHalaqa, setFilterHalaqa] = useState(initialHalaqa);
@@ -397,7 +442,7 @@ export default function Students() {
     setLoading(true);
     try {
       const [sRes, hRes, pRes] = await Promise.all([
-        studentsAPI.getAll(), 
+        studentsAPI.getAll(),
         halaqatAPI.getAll(),
         usersAPI.getAll('parent')
       ]);
@@ -558,7 +603,7 @@ export default function Students() {
         />
       )}
 
-      <ConfirmModal 
+      <ConfirmModal
         isOpen={!!deleteId}
         title="تأكيد حذف الطالب"
         message={`هل أنت متأكد من حذف الطالب "${deleteName}"؟ سيتم حذف جميع بيانات المتابعة الخاصة به نهائياً.`}

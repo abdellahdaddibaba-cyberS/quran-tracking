@@ -1,21 +1,24 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trophy, Search, Star, CheckCircle2, Loader2, History, Users, Award, ChevronLeft, ChevronRight, TrendingUp, Calendar, Zap } from 'lucide-react';
+import { Trophy, Search, Star, CheckCircle2, Loader2, History, Users, Award, ChevronLeft, ChevronRight, TrendingUp, Calendar, Zap, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { reportsAPI, studentsAPI, halaqatAPI } from '../services/api';
+import { reportsAPI, studentsAPI, halaqatAPI, syncAPI } from '../services/api';
 
-function getSaturdayForWeek(date) {
+function getThursdayForWeek(date) {
   const d = new Date(date);
-  const day = d.getDay();
-  const diff = 6 - day;
+  const day = d.getDay(); // 0=Sun, 4=Thu
+  const diff = (4 - day + 7) % 7;
   d.setDate(d.getDate() + diff);
-  return d.toISOString().split('T')[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
 }
 
-function formatSaturdayDate(satDateStr) {
-  const [y, m, d] = satDateStr.split('-').map(Number);
-  const satObj = new Date(y, m - 1, d);
-  return satObj.toLocaleDateString('ar-DZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+function formatThursdayDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const obj = new Date(y, m - 1, d);
+  return obj.toLocaleDateString('ar-DZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 export default function StudentAwards() {
@@ -32,12 +35,32 @@ export default function StudentAwards() {
   const [search, setSearch] = useState('');
   
   // Improvement Tab States
-  const [selectedSaturday, setSelectedSaturday] = useState(() => getSaturdayForWeek(new Date()));
+  const [selectedThursday, setSelectedThursday] = useState(() => getThursdayForWeek(new Date()));
   const [improvementData, setImprovementData] = useState({ winners: [] });
   const [impLoading, setImpLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
 
   const navigate = useNavigate();
+
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null); // null | 'success' | 'error'
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncStatus(null);
+    try {
+      await syncAPI.runSync();
+      setSyncStatus('success');
+      toast.success('تمت المزامنة مع Supabase بنجاح ✅');
+      setTimeout(() => setSyncStatus(null), 5000);
+    } catch (err) {
+      setSyncStatus('error');
+      toast.error(err.response?.data?.message || 'فشلت المزامنة مع Supabase ❌');
+      setTimeout(() => setSyncStatus(null), 5000);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -61,7 +84,7 @@ export default function StudentAwards() {
     setImpLoading(true);
     try {
       const res = await reportsAPI.getImprovementAwards(date);
-      setImprovementData(res.data.data || { winners: [] });
+      setImprovementData(res.data.data || { winners: [], ranges: {} });
     } catch (err) {
       toast.error('فشل تحميل جوائز التحسن');
     } finally {
@@ -75,9 +98,9 @@ export default function StudentAwards() {
 
   useEffect(() => {
     if (activeTab === 'improvement') {
-      fetchImprovementData(selectedSaturday);
+      fetchImprovementData(selectedThursday);
     }
-  }, [selectedSaturday, activeTab]);
+  }, [selectedThursday, activeTab]);
 
   const toggleStudent = (id) => {
     setSelected(prev => {
@@ -127,7 +150,7 @@ export default function StudentAwards() {
       await reportsAPI.givePrize({ studentId, prizeTitle: title });
       toast.success('تم تسليم الجائزة بنجاح 🏆');
       fetchData();
-      fetchImprovementData(selectedSaturday);
+      fetchImprovementData(selectedThursday);
     } catch (err) {
       toast.error('فشل تسليم الجائزة');
     } finally {
@@ -151,19 +174,21 @@ export default function StudentAwards() {
     setSubmitting(false);
     toast.success(`تم تسليم الجائزة لـ ${successCount} طالب بنجاح 🏆`);
     fetchData();
-    fetchImprovementData(selectedSaturday);
+    fetchImprovementData(selectedThursday);
   };
 
   const prevWeek = () => {
-    const d = new Date(selectedSaturday);
-    d.setDate(d.getDate() - 7);
-    setSelectedSaturday(d.toISOString().split('T')[0]);
+    const [y, m, d] = selectedThursday.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() - 7);
+    setSelectedThursday(`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`);
   };
 
   const nextWeek = () => {
-    const d = new Date(selectedSaturday);
-    d.setDate(d.getDate() + 7);
-    setSelectedSaturday(d.toISOString().split('T')[0]);
+    const [y, m, d] = selectedThursday.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() + 7);
+    setSelectedThursday(`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`);
   };
 
   // تجميع الطلاب حسب الحلقة مع تطبيق البحث (للتبويب اليدوي)
@@ -185,13 +210,46 @@ export default function StudentAwards() {
   return (
     <div className="report-container">
       {/* ─── Header ─────────────────────────────────────────── */}
-      <div className="page-header">
-        <div className="page-title">
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div className="page-title" style={{ margin: 0 }}>
           <div className="page-title-icon" style={{ background: 'rgba(245,158,11,0.15)', color: 'var(--gold-400)' }}>
             <Trophy size={20} />
           </div>
           لوحة الجوائز والمكافآت
         </div>
+
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="btn btn-sm"
+          style={{
+            display: 'flex', alignItems: 'center', gap: '0.5rem',
+            padding: '0.6rem 1.2rem',
+            borderRadius: 'var(--radius-sm)',
+            border: 'none', cursor: syncing ? 'not-allowed' : 'pointer',
+            fontFamily: 'inherit', fontWeight: 700, fontSize: '0.85rem',
+            background: syncStatus === 'success'
+              ? 'linear-gradient(135deg, #22c55e, #16a34a)'
+              : syncStatus === 'error'
+              ? 'linear-gradient(135deg, #ef4444, #dc2626)'
+              : 'linear-gradient(135deg, #3b82f6, #2563eb)',
+            color: 'white',
+            opacity: syncing ? 0.75 : 1,
+            boxShadow: '0 2px 8px rgba(59,130,246,0.3)',
+            transition: 'all 0.3s ease',
+          }}
+        >
+          {syncing ? (
+            <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
+          ) : syncStatus === 'success' ? (
+            <CheckCircle size={14} />
+          ) : syncStatus === 'error' ? (
+            <XCircle size={14} />
+          ) : (
+            <RefreshCw size={14} />
+          )}
+          {syncing ? 'جاري المزامنة...' : syncStatus === 'success' ? 'تمت المزامنة ✅' : syncStatus === 'error' ? 'فشلت المزامنة ❌' : 'مزامنة مع الجوال'}
+        </button>
       </div>
 
       {/* ─── Navigation Tabs ─────────────────────────────────── */}
@@ -387,7 +445,7 @@ export default function StudentAwards() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text)' }}>
               <Calendar size={15} color="var(--gold-400)" />
               <span style={{ fontWeight: 700, minWidth: 250, textAlign: 'center', fontSize: '0.92rem' }}>
-                أسبوع السبت: {formatSaturdayDate(selectedSaturday)}
+                خميس الأسبوع: {formatThursdayDate(selectedThursday)}
               </span>
             </div>
             <button onClick={nextWeek} className="btn-icon" title="الأسبوع التالي"
@@ -411,8 +469,10 @@ export default function StudentAwards() {
             <div>
               <p style={{ margin: 0, fontWeight: 700, fontSize: '0.88rem' }}>معيار جائزة التحسن:</p>
               <ul style={{ margin: '0.2rem 0 0 0', paddingRight: '1rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                <li>تُمنح <b>جائزة التحسن</b> للطالب الذي يكون قسطه اليومي صفحتين أو أقل عند إنجازه <b>9 صفحات فما فوق</b> خلال الأسبوع.</li>
-                <li>إذا أنجز الطالب <b>14 صفحة فما فوق</b> هذا الأسبوع، يُشترط أن يكون قد حقق <b>9 صفحات فما فوق</b> في الأسبوع السابق لتسليمه الجائزة.</li>
+                <li>قسط الطالب اليومي <b>صفحتان أو أقل</b>.</li>
+                <li>في الأسبوع الماضي (السبت→الخميس) حقق <b>9 صفحات أو أكثر</b>.</li>
+                <li>في هذا الأسبوع حقق <b>14 صفحة أو أكثر</b> (تحسن بـ5 صفحات على الأقل).</li>
+                <li>تُقدَّم الجائزة <b>يوم الخميس</b> من كل أسبوع، بدءاً من الأسبوع الثالث.</li>
               </ul>
             </div>
           </div>
@@ -461,10 +521,10 @@ export default function StudentAwards() {
                         <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>
                           <th style={{ padding: '0.5rem 1rem', textAlign: 'right' }}>اسم الطالب</th>
                           <th style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>الحلقة</th>
-                          <th style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>القسط اليومي</th>
+                          <th style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>القسط/يوم</th>
                           <th style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>الأسبوع الماضي</th>
                           <th style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>هذا الأسبوع</th>
-                          <th style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>ملاحظة التقييم</th>
+                          <th style={{ padding: '0.5rem 1rem', textAlign: 'center', color: 'var(--green-400)' }}>التحسن</th>
                           <th style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>الإجراءات</th>
                         </tr>
                       </thead>
@@ -477,15 +537,9 @@ export default function StudentAwards() {
                             <td style={{ padding: '0.75rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>{st.prevTotal} ص</td>
                             <td style={{ padding: '0.75rem 1rem', textAlign: 'center', color: 'var(--gold-400)', fontWeight: 700 }}>{st.currentTotal} ص</td>
                             <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
-                              {st.isRaised ? (
-                                <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '2px 8px', borderRadius: 12, fontSize: '0.75rem', fontWeight: 700 }}>
-                                  ✓ رفع إنجازه لـ 14 صفحة
-                                </span>
-                              ) : (
-                                <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: 'var(--info)', padding: '2px 8px', borderRadius: 12, fontSize: '0.75rem' }}>
-                                  ✓ إنجاز 9 صفحات فما فوق
-                                </span>
-                              )}
+                              <span style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', padding: '3px 10px', borderRadius: 12, fontSize: '0.8rem', fontWeight: 800 }}>
+                                +{st.improvement} ص ⬆
+                              </span>
                             </td>
                             <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
                               <button

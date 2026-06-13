@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, BookOpen, AlignJustify, TrendingUp, ArrowLeft, Calendar } from 'lucide-react';
-import { halaqatAPI, studentsAPI, trackingAPI, mobileAPI } from '../services/api';
+import { Users, BookOpen, AlignJustify, TrendingUp, ArrowLeft, Calendar, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
+import { halaqatAPI, studentsAPI, trackingAPI, mobileAPI, syncAPI } from '../services/api';
+import toast from 'react-hot-toast';
 
 export default function Home({ user }) {
   const [stats, setStats] = useState({ halaqat: 0, students: 0, todayRecords: 0 });
@@ -9,6 +10,25 @@ export default function Home({ user }) {
   const [loading, setLoading] = useState(true);
   const [doneHalaqat, setDoneHalaqat] = useState(new Set());
   const [myStudents, setMyStudents] = useState([]);
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null); // null | 'success' | 'error'
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncStatus(null);
+    try {
+      await syncAPI.runSync();
+      setSyncStatus('success');
+      toast.success('تمت المزامنة مع Supabase بنجاح ✅', { duration: 4000 });
+      setTimeout(() => setSyncStatus(null), 5000);
+    } catch (err) {
+      setSyncStatus('error');
+      toast.error(err.response?.data?.message || 'فشلت المزامنة مع Supabase ❌', { duration: 5000 });
+      setTimeout(() => setSyncStatus(null), 5000);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -159,15 +179,52 @@ export default function Home({ user }) {
               نظام متابعة تحصيل الطلاب للحلقات القرآنية
             </p>
           </div>
-          <div style={{
-            background: 'rgba(0,0,0,0.3)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '0.75rem 1.25rem',
-            display: 'flex', alignItems: 'center', gap: '0.5rem',
-            color: 'var(--text-secondary)', fontSize: '0.85rem',
-          }}>
-            <Calendar size={16} color="var(--green-400)" />
-            {today}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.75rem' }}>
+            <div style={{
+              background: 'rgba(0,0,0,0.3)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0.75rem 1.25rem',
+              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              color: 'var(--text-secondary)', fontSize: '0.85rem',
+            }}>
+              <Calendar size={16} color="var(--green-400)" />
+              {today}
+            </div>
+
+            {user?.role === 'admin' && (
+              <button
+                id="btn-sync-supabase"
+                onClick={handleSync}
+                disabled={syncing}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.5rem',
+                  padding: '0.6rem 1.2rem',
+                  borderRadius: 'var(--radius-sm)',
+                  border: 'none', cursor: syncing ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit', fontWeight: 700, fontSize: '0.85rem',
+                  background: syncStatus === 'success'
+                    ? 'linear-gradient(135deg, #22c55e, #16a34a)'
+                    : syncStatus === 'error'
+                    ? 'linear-gradient(135deg, #ef4444, #dc2626)'
+                    : 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                  color: 'white',
+                  opacity: syncing ? 0.75 : 1,
+                  boxShadow: '0 2px 8px rgba(59,130,246,0.3)',
+                  transition: 'all 0.3s ease',
+                }}
+              >
+                {syncing ? (
+                  <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                ) : syncStatus === 'success' ? (
+                  <CheckCircle size={15} />
+                ) : syncStatus === 'error' ? (
+                  <XCircle size={15} />
+                ) : (
+                  <RefreshCw size={15} />
+                )}
+                {syncing ? 'جاري المزامنة...' : syncStatus === 'success' ? 'تمت المزامنة ✅' : syncStatus === 'error' ? 'فشلت المزامنة ❌' : 'مزامنة مع Supabase'}
+              </button>
+            )}
           </div>
         </div>
       </div>

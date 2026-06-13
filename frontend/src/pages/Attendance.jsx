@@ -6,22 +6,39 @@ import { halaqatAPI, studentsAPI, trackingAPI } from '../services/api';
 function getWeekDays(dateInput) {
   const [y, m, d] = dateInput.split('-');
   const date = new Date(y, m - 1, d);
-  const day = date.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
-
-  const diffToSun = day;
-  const sunday = new Date(date);
-  sunday.setDate(date.getDate() - diffToSun);
+  const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
   const days = [];
   const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-  for (let i = 0; i < 6; i++) {
-    const current = new Date(sunday);
-    current.setDate(sunday.getDate() + i);
-    days.push({
-      dateStr: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`,
-      label: dayNames[current.getDay()],
-      shortDate: current.toLocaleDateString('ar-DZ', { month: 'numeric', day: 'numeric' })
-    });
+
+  if (dateStr < '2026-06-20') {
+    // الأسبوع الأول: الأحد إلى الخميس (5 أيام)
+    const sunday = new Date(2026, 5, 14); // 14 June 2026
+    for (let i = 0; i < 5; i++) {
+      const current = new Date(sunday);
+      current.setDate(sunday.getDate() + i);
+      days.push({
+        dateStr: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`,
+        label: dayNames[current.getDay()],
+        shortDate: current.toLocaleDateString('ar-DZ', { month: 'numeric', day: 'numeric' })
+      });
+    }
+  } else {
+    // الأسابيع الباقية: السبت إلى الخميس (6 أيام)
+    const day = date.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
+    const diffToSat = (day + 1) % 7;
+    const saturday = new Date(date);
+    saturday.setDate(date.getDate() - diffToSat);
+
+    for (let i = 0; i < 6; i++) { // السبت إلى الخميس (6 أيام)
+      const current = new Date(saturday);
+      current.setDate(saturday.getDate() + i);
+      days.push({
+        dateStr: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`,
+        label: dayNames[current.getDay()],
+        shortDate: current.toLocaleDateString('ar-DZ', { month: 'numeric', day: 'numeric' })
+      });
+    }
   }
   return days;
 }
@@ -38,11 +55,22 @@ export default function Attendance() {
   const weekDays = useMemo(() => getWeekDays(baseDate), [baseDate]);
 
   const weekName = useMemo(() => {
-    const start = new Date(2026, 5, 14);
     const [y, m, d] = baseDate.split('-');
     const current = new Date(y, m - 1, d);
-    const diffDays = Math.floor((current - start) / (1000 * 60 * 60 * 24));
-    const weekNum = Math.max(1, Math.floor(diffDays / 7) + 1);
+    const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+
+    let weekNum = 1;
+    if (dateStr >= '2026-06-20') {
+      const day = current.getDay();
+      const diffToSat = (day + 1) % 7;
+      const saturday = new Date(current);
+      saturday.setDate(current.getDate() - diffToSat);
+
+      const startW2 = new Date(2026, 5, 20); // 20 June 2026
+      const diffDays = Math.floor((saturday - startW2) / (1000 * 60 * 60 * 24));
+      weekNum = 2 + Math.floor(diffDays / 7);
+    }
+
     const names = ['الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس', 'السابع', 'الثامن', 'التاسع', 'العاشر'];
     return names[weekNum - 1] || String(weekNum);
   }, [baseDate]);
@@ -59,7 +87,7 @@ export default function Attendance() {
       setLoading(true);
       try {
         const startDate = weekDays[0].dateStr;
-        const endDate = weekDays[5].dateStr;
+        const endDate = weekDays[weekDays.length - 1].dateStr;
 
         const [hRes, sRes, tRes] = await Promise.all([
           halaqatAPI.getAll(),
@@ -220,7 +248,7 @@ export default function Attendance() {
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <div className="form-row" style={{ alignItems: 'flex-end' }}>
           <div className="form-group" style={{ flex: 1 }}>
-            <label className="form-label">أسبوع يبدأ من (الأحد) — <span style={{ color: 'var(--green-500)', fontWeight: 'bold' }}>الأسبوع {weekName}</span></label>
+            <label className="form-label">أسبوع يبدأ من ({weekDays[0]?.label || 'الأحد'}) — <span style={{ color: 'var(--green-500)', fontWeight: 'bold' }}>الأسبوع {weekName}</span></label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <button className="btn btn-secondary" onClick={() => shiftWeek(-1)} title="الأسبوع السابق">
                 <ChevronRight size={18} />

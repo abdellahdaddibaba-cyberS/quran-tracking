@@ -9,23 +9,39 @@ function getWeekDays(dateInput) {
   // استخدام التوقيت المحلي بدلاً من UTC لتجنب مشاكل فارق التوقيت
   const [y, m, d] = dateInput.split('-');
   const date = new Date(y, m - 1, d);
-  const day = date.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
-
-  // إيجاد يوم الأحد السابق أو الحالي
-  const diffToSun = day;
-  const sunday = new Date(date);
-  sunday.setDate(date.getDate() - diffToSun);
+  const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
   const days = [];
   const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-  for (let i = 0; i < 6; i++) { // Sun to Fri (6 days)
-    const current = new Date(sunday);
-    current.setDate(sunday.getDate() + i);
-    days.push({
-      dateStr: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`,
-      label: dayNames[current.getDay()],
-      shortDate: current.toLocaleDateString('ar-DZ', { month: 'numeric', day: 'numeric' })
-    });
+
+  if (dateStr < '2026-06-20') {
+    // الأسبوع الأول: الأحد إلى الخميس (5 أيام)
+    const sunday = new Date(2026, 5, 14); // 14 June 2026
+    for (let i = 0; i < 5; i++) {
+      const current = new Date(sunday);
+      current.setDate(sunday.getDate() + i);
+      days.push({
+        dateStr: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`,
+        label: dayNames[current.getDay()],
+        shortDate: current.toLocaleDateString('ar-DZ', { month: 'numeric', day: 'numeric' })
+      });
+    }
+  } else {
+    // الأسابيع الباقية: السبت إلى الخميس (6 أيام)
+    const day = date.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
+    const diffToSat = (day + 1) % 7;
+    const saturday = new Date(date);
+    saturday.setDate(date.getDate() - diffToSat);
+
+    for (let i = 0; i < 6; i++) { // السبت إلى الخميس (6 أيام)
+      const current = new Date(saturday);
+      current.setDate(saturday.getDate() + i);
+      days.push({
+        dateStr: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`,
+        label: dayNames[current.getDay()],
+        shortDate: current.toLocaleDateString('ar-DZ', { month: 'numeric', day: 'numeric' })
+      });
+    }
   }
   return days;
 }
@@ -46,11 +62,22 @@ export default function DailyInput() {
   const weekDays = useMemo(() => getWeekDays(baseDate), [baseDate]);
 
   const weekName = useMemo(() => {
-    const start = new Date(2026, 5, 14); // 14 June 2026 (Sunday)
     const [y, m, d] = baseDate.split('-');
     const current = new Date(y, m - 1, d);
-    const diffDays = Math.floor((current - start) / (1000 * 60 * 60 * 24));
-    const weekNum = Math.max(1, Math.floor(diffDays / 7) + 1);
+    const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+
+    let weekNum = 1;
+    if (dateStr >= '2026-06-20') {
+      const day = current.getDay();
+      const diffToSat = (day + 1) % 7;
+      const saturday = new Date(current);
+      saturday.setDate(current.getDate() - diffToSat);
+
+      const startW2 = new Date(2026, 5, 20); // 20 June 2026
+      const diffDays = Math.floor((saturday - startW2) / (1000 * 60 * 60 * 24));
+      weekNum = 2 + Math.floor(diffDays / 7);
+    }
+
     const names = ['الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس', 'السابع', 'الثامن', 'التاسع', 'العاشر'];
     return names[weekNum - 1] || String(weekNum);
   }, [baseDate]);
@@ -58,6 +85,7 @@ export default function DailyInput() {
   const [students, setStudents] = useState([]);
   // matrix: { studentId: { dateStr: pagesMemorized } }
   const [matrix, setMatrix] = useState({});
+  const [cumulativeTotals, setCumulativeTotals] = useState({}); // إجمالي تراكمي لكل طالب
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -75,6 +103,7 @@ export default function DailyInput() {
     if (!selectedHalaqa) {
       setStudents([]);
       setMatrix({});
+      setCumulativeTotals({});
       return;
     }
 
@@ -82,12 +111,14 @@ export default function DailyInput() {
       setLoading(true);
       try {
         const startDate = weekDays[0].dateStr;
-        const endDate = weekDays[5].dateStr;
+        const endDate = weekDays[weekDays.length - 1].dateStr;
 
-        const [studentsRes, trackingRes] = await Promise.all([
+        const [studentsRes, trackingRes, cumRes] = await Promise.all([
           studentsAPI.getByHalaqa(selectedHalaqa),
-          trackingAPI.getByHalaqa(selectedHalaqa, { startDate, endDate })
+          trackingAPI.getByHalaqa(selectedHalaqa, { startDate, endDate }),
+          trackingAPI.getHalaqaCumulative(selectedHalaqa),
         ]);
+        setCumulativeTotals(cumRes.data.data || {});
 
         const fetchedStudents = studentsRes.data.data;
         const fetchedTracking = trackingRes.data.data;
@@ -290,7 +321,7 @@ export default function DailyInput() {
 
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-          <label className="form-label">أسبوع يبدأ من (الأحد) — <span style={{ color: 'var(--green-500)', fontWeight: 'bold' }}>الأسبوع {weekName}</span></label>
+          <label className="form-label">أسبوع يبدأ من ({weekDays[0]?.label || 'الأحد'}) — <span style={{ color: 'var(--green-500)', fontWeight: 'bold' }}>الأسبوع {weekName}</span></label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', maxWidth: '400px' }}>
             <button className="btn btn-secondary" onClick={() => shiftWeek(-1)} title="الأسبوع السابق">
               <ChevronRight size={18} />
@@ -422,10 +453,28 @@ export default function DailyInput() {
                     </div>
                   </th>
                 ))}
+                <th style={{ textAlign: 'center', minWidth: 100, background: 'rgba(34,197,94,0.08)', borderRight: '2px solid rgba(34,197,94,0.2)' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>هذا الأسبوع</div>
+                  <div>المجموع</div>
+                </th>
+                <th style={{ textAlign: 'center', minWidth: 120, background: 'rgba(99,102,241,0.08)', borderRight: '2px solid rgba(99,102,241,0.2)' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'rgba(129,140,248,0.8)' }}>جميع الأسابيع</div>
+                  <div style={{ color: '#818cf8' }}>الإجمالي الكلي</div>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {students.map((st, idx) => (
+              {students.map((st, idx) => {
+                // حساب مجموع الأسبوع الحالي مباشرة من المدخلات
+                const weekSum = weekDays.reduce((sum, day) => {
+                  const c = matrix[st._id]?.[day.dateStr];
+                  return sum + (c && c.pages !== '' && c.attendance !== 'absent' ? Number(c.pages || 0) : 0);
+                }, 0);
+                const weekReq = st.dailyTarget * weekDays.length;
+                const weekPct = weekReq > 0 ? Math.round((weekSum / weekReq) * 100) : 0;
+                const weekColor = weekPct >= 80 ? 'var(--green-400)' : weekPct >= 50 ? 'var(--gold-400)' : 'var(--danger)';
+                const cumTotal = Number(cumulativeTotals[st._id] || 0);
+                return (
                 <tr key={st._id}>
                   <td style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
                   <td style={{ fontWeight: 700, fontSize: '0.9rem' }}>{st.name}</td>
@@ -531,72 +580,75 @@ export default function DailyInput() {
                       </td>
                     );
                   })}
+                  {/* عمود مجموع الأسبوع */}
+                  <td style={{ textAlign: 'center', background: 'rgba(34,197,94,0.04)', padding: '0.5rem', borderRight: '2px solid rgba(34,197,94,0.15)', verticalAlign: 'middle' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                      <span style={{ fontWeight: 900, fontSize: '1.1rem', color: weekColor }}>{weekSum}</span>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.06)', borderRadius: 999, padding: '1px 6px' }}>{weekPct}%</span>
+                    </div>
+                  </td>
+                  {/* عمود الإجمالي التراكمي */}
+                  <td style={{ textAlign: 'center', background: 'rgba(99,102,241,0.04)', padding: '0.5rem', borderRight: '2px solid rgba(99,102,241,0.15)', verticalAlign: 'middle' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                      <span style={{ fontWeight: 900, fontSize: '1.1rem', color: '#818cf8' }}>{cumTotal}</span>
+                      <span style={{ fontSize: '0.65rem', color: 'rgba(129,140,248,0.7)', background: 'rgba(99,102,241,0.12)', borderRadius: 999, padding: '1px 7px', fontWeight: 600 }}>صفحة</span>
+                    </div>
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
 
             {/* ─── صف المجاميع اليومية ─── */}
             <tfoot>
-              <tr style={{
-                background: 'rgba(34,197,94,0.06)',
-                borderTop: '2px solid var(--border-green)',
-              }}>
-                <td colSpan={2} style={{
-                  padding: '0.75rem 1rem',
-                  fontWeight: 800,
-                  color: 'var(--green-400)',
-                  fontSize: '0.85rem',
-                }}>
-                  التحصيل الإجمالي
+              <tr style={{ background: 'rgba(34,197,94,0.06)', borderTop: '2px solid var(--border-green)' }}>
+                <td colSpan={2} style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--green-400)', fontSize: '0.85rem' }}>
+                  إجمالي الحلقة
                 </td>
-                {/* عمود إجمالي القسط */}
                 <td style={{ textAlign: 'center', padding: '0.75rem 0.5rem' }}>
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'rgba(34,197,94,0.15)', color: 'var(--green-400)',
-                    borderRadius: 'var(--radius-sm)', padding: '2px 10px',
-                    fontWeight: 800, fontSize: '0.85rem',
-                  }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(34,197,94,0.15)', color: 'var(--green-400)', borderRadius: 'var(--radius-sm)', padding: '2px 10px', fontWeight: 800, fontSize: '0.85rem' }}>
                     {students.reduce((sum, st) => sum + (st.dailyTarget || 0), 0)}
                   </span>
                 </td>
-                {/* إجمالي كل يوم */}
                 {weekDays.map(day => {
                   const total = students.reduce((sum, st) => {
-                    const cellData = matrix[st._id]?.[day.dateStr];
-                    const val = cellData?.pages;
-                    return sum + (val !== '' && val !== undefined && cellData?.attendance !== 'absent' ? Number(val) : 0);
+                    const c = matrix[st._id]?.[day.dateStr];
+                    return sum + (c && c.pages !== '' && c.pages !== undefined && c.attendance !== 'absent' ? Number(c.pages) : 0);
                   }, 0);
                   const required = students.reduce((sum, st) => sum + (st.dailyTarget || 0), 0);
-                  const hasData = students.some(st => {
-                    const c = matrix[st._id]?.[day.dateStr];
-                    return c && (c.pages !== '' || c.attendance === 'absent' || c.isLate);
-                  });
+                  const hasData = students.some(st => { const c = matrix[st._id]?.[day.dateStr]; return c && (c.pages !== '' || c.attendance === 'absent' || c.isLate); });
                   const pct = required > 0 ? Math.round((total / required) * 100) : 0;
-
+                  const pctColor = pct >= 80 ? 'var(--green-400)' : pct >= 50 ? 'var(--gold-400)' : 'var(--danger)';
                   return (
                     <td key={day.dateStr} style={{ textAlign: 'center', padding: '0.75rem 0.5rem' }}>
-                      {hasData ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
-                          <span style={{
-                            fontWeight: 800,
-                            fontSize: '1rem',
-                            color: pct >= 80 ? 'var(--green-400)' : pct >= 50 ? 'var(--gold-400)' : 'var(--danger)',
-                          }}>{total}</span>
-                          <span style={{
-                            fontSize: '0.68rem',
-                            color: 'var(--text-muted)',
-                            background: 'rgba(255,255,255,0.05)',
-                            borderRadius: 999,
-                            padding: '1px 6px',
-                          }}>{pct}%</span>
-                        </div>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</span>
-                      )}
+                      {hasData ? (<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                        <span style={{ fontWeight: 800, fontSize: '1rem', color: pctColor }}>{total}</span>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.05)', borderRadius: 999, padding: '1px 6px' }}>{pct}%</span>
+                      </div>) : (<span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</span>)}
                     </td>
                   );
                 })}
+                {/* مجموع الأسبوع الكلي للحلقة */}
+                <td style={{ textAlign: 'center', padding: '0.75rem 0.5rem', background: 'rgba(34,197,94,0.08)', borderRight: '2px solid rgba(34,197,94,0.2)' }}>
+                  {(() => {
+                    const g = students.reduce((s, st) => s + weekDays.reduce((d, day) => { const c = matrix[st._id]?.[day.dateStr]; return d + (c && c.pages !== '' && c.attendance !== 'absent' ? Number(c.pages || 0) : 0); }, 0), 0);
+                    const gReq = students.reduce((s, st) => s + st.dailyTarget * weekDays.length, 0);
+                    const gPct = gReq > 0 ? Math.round((g / gReq) * 100) : 0;
+                    return (<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                      <span style={{ fontWeight: 900, fontSize: '1.1rem', color: gPct >= 80 ? 'var(--green-400)' : gPct >= 50 ? 'var(--gold-400)' : 'var(--danger)' }}>{g}</span>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', borderRadius: 999, padding: '1px 6px' }}>{gPct}%</span>
+                    </div>);
+                  })()}
+                </td>
+                {/* الإجمالي التراكمي الكلي للحلقة */}
+                <td style={{ textAlign: 'center', padding: '0.75rem 0.5rem', background: 'rgba(99,102,241,0.12)', borderRight: '2px solid rgba(99,102,241,0.3)' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                    <span style={{ fontWeight: 900, fontSize: '1.15rem', color: '#818cf8' }}>
+                      {students.reduce((s, st) => s + Number(cumulativeTotals[st._id] || 0), 0)}
+                    </span>
+                    <span style={{ fontSize: '0.65rem', color: 'rgba(129,140,248,0.8)', background: 'rgba(99,102,241,0.15)', borderRadius: 999, padding: '1px 7px', fontWeight: 700 }}>إجمالي الحلقة</span>
+                  </div>
+                </td>
               </tr>
             </tfoot>
           </table>

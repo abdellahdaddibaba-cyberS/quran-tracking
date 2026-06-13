@@ -8,20 +8,39 @@ import { halaqatAPI, studentsAPI, trackingAPI, mobileAPI } from '../services/api
 function getWeekDays(dateInput) {
   const [y, m, d] = dateInput.split('-');
   const date = new Date(y, m - 1, d);
-  const day = date.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
-  const diffToSun = day;
-  const sunday = new Date(date);
-  sunday.setDate(date.getDate() - diffToSun);
+  const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
   const days = [];
   const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-  for (let i = 0; i < 6; i++) {
-    const current = new Date(sunday);
-    current.setDate(sunday.getDate() + i);
-    days.push({
-      dateStr: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`,
-      label: dayNames[current.getDay()],
-      shortDate: current.toLocaleDateString('ar-DZ', { month: 'numeric', day: 'numeric' }),
-    });
+
+  if (dateStr < '2026-06-20') {
+    // الأسبوع الأول: الأحد إلى الخميس (5 أيام)
+    const sunday = new Date(2026, 5, 14); // 14 June 2026
+    for (let i = 0; i < 5; i++) {
+      const current = new Date(sunday);
+      current.setDate(sunday.getDate() + i);
+      days.push({
+        dateStr: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`,
+        label: dayNames[current.getDay()],
+        shortDate: current.toLocaleDateString('ar-DZ', { month: 'numeric', day: 'numeric' }),
+      });
+    }
+  } else {
+    // الأسابيع الباقية: السبت إلى الخميس (6 أيام)
+    const day = date.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
+    const diffToSat = (day + 1) % 7;
+    const saturday = new Date(date);
+    saturday.setDate(date.getDate() - diffToSat);
+
+    for (let i = 0; i < 6; i++) { // السبت إلى الخميس (6 أيام)
+      const current = new Date(saturday);
+      current.setDate(saturday.getDate() + i);
+      days.push({
+        dateStr: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`,
+        label: dayNames[current.getDay()],
+        shortDate: current.toLocaleDateString('ar-DZ', { month: 'numeric', day: 'numeric' }),
+      });
+    }
   }
   return days;
 }
@@ -61,11 +80,22 @@ export default function WeeklyReport({ user }) {
   const weekDays = useMemo(() => getWeekDays(baseDate), [baseDate]);
 
   const weekName = useMemo(() => {
-    const start = new Date(2026, 5, 14);
     const [y, m, d] = baseDate.split('-');
     const current = new Date(y, m - 1, d);
-    const diffDays = Math.floor((current - start) / (1000 * 60 * 60 * 24));
-    const weekNum = Math.max(1, Math.floor(diffDays / 7) + 1);
+    const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+
+    let weekNum = 1;
+    if (dateStr >= '2026-06-20') {
+      const day = current.getDay();
+      const diffToSat = (day + 1) % 7;
+      const saturday = new Date(current);
+      saturday.setDate(current.getDate() - diffToSat);
+
+      const startW2 = new Date(2026, 5, 20); // 20 June 2026
+      const diffDays = Math.floor((saturday - startW2) / (1000 * 60 * 60 * 24));
+      weekNum = 2 + Math.floor(diffDays / 7);
+    }
+
     const names = ['الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس', 'السابع', 'الثامن', 'التاسع', 'العاشر'];
     return names[weekNum - 1] || String(weekNum);
   }, [baseDate]);
@@ -74,6 +104,7 @@ export default function WeeklyReport({ user }) {
   const [selectedHalaqa, setSelectedHalaqa] = useState('');
   const [students, setStudents] = useState([]);
   const [matrix, setMatrix] = useState({});
+  const [cumulativeTotals, setCumulativeTotals] = useState({}); // إجمالي تراكمي لكل طالب
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -100,12 +131,12 @@ export default function WeeklyReport({ user }) {
   }, [isParent]);
 
   useEffect(() => {
-    if (!selectedHalaqa) { setStudents([]); setMatrix({}); return; }
+    if (!selectedHalaqa) { setStudents([]); setMatrix({}); setCumulativeTotals({}); return; }
     const load = async () => {
       setLoading(true);
       try {
         const startDate = weekDays[0].dateStr;
-        const endDate = weekDays[5].dateStr;
+        const endDate = weekDays[weekDays.length - 1].dateStr;
         let fetchedStudents;
         let fetchedTracking;
         if (isParent) {
@@ -116,17 +147,20 @@ export default function WeeklyReport({ user }) {
           });
           fetchedStudents = res.data.data.students;
           fetchedTracking = res.data.data.tracking;
+          setStudents(fetchedStudents);
+          setMatrix(buildWeekMatrix(fetchedStudents, fetchedTracking, weekDays));
         } else {
-          const [sRes, tRes] = await Promise.all([
+          const [sRes, tRes, cumRes] = await Promise.all([
             studentsAPI.getByHalaqa(selectedHalaqa),
             trackingAPI.getByHalaqa(selectedHalaqa, { startDate, endDate }),
+            trackingAPI.getHalaqaCumulative(selectedHalaqa),
           ]);
           fetchedStudents = sRes.data.data;
           fetchedTracking = tRes.data.data;
+          setStudents(fetchedStudents);
+          setMatrix(buildWeekMatrix(fetchedStudents, fetchedTracking, weekDays));
+          setCumulativeTotals(cumRes.data.data || {});
         }
-
-        setStudents(fetchedStudents);
-        setMatrix(buildWeekMatrix(fetchedStudents, fetchedTracking, weekDays));
       } catch { /* ignore */ }
       finally { setLoading(false); }
     };
@@ -169,7 +203,7 @@ export default function WeeklyReport({ user }) {
     const toastId = toast.loading('جاري تصدير التقرير الفاخر...');
     try {
       const startDate = weekDays[0].dateStr;
-      const endDate = weekDays[5].dateStr;
+      const endDate = weekDays[weekDays.length - 1].dateStr;
 
       const [hRes, sRes, tRes, totalRes] = await Promise.all([
         halaqatAPI.getAll(),
@@ -209,7 +243,7 @@ export default function WeeklyReport({ user }) {
 
       // حساب إحصائيات عامة لجميع الحلقات
       const totalPages = allTracking.reduce((s, r) => s + r.pagesMemorized, 0);
-      const totalReq = allStudents.reduce((s, st) => s + (st.dailyTarget * 6), 0);
+      const totalReq = allStudents.reduce((s, st) => s + (st.dailyTarget * weekDays.length), 0);
       const totalPct = totalReq > 0 ? Math.round((totalPages / totalReq) * 100) : 0;
 
       const statBox = summarySheet.getCell('A4');
@@ -233,8 +267,8 @@ export default function WeeklyReport({ user }) {
       allHalaqat.forEach((h, i) => {
         const hStudents = allStudents.filter(s => (s.halaqaId?._id || s.halaqaId) === h._id);
         const hPages = allTracking.filter(r => hStudents.some(s => (r.studentId?._id || r.studentId) === s._id)).reduce((s, r) => s + r.pagesMemorized, 0);
-        const hReq = hStudents.length * 6; // تبسيط للتمثيل
-        const hPct = hReq > 0 ? Math.round((hPages / (hStudents.reduce((s, st) => s + st.dailyTarget, 0) * 6)) * 100) : 0;
+        const hReq = hStudents.length * weekDays.length; // تبسيط للتمثيل
+        const hPct = hReq > 0 ? Math.round((hPages / (hStudents.reduce((s, st) => s + st.dailyTarget, 0) * weekDays.length)) * 100) : 0;
 
         const r = summarySheet.addRow([i + 1, h.name, h.supervisor, hStudents.length, `${hPct}%`, hPct >= 80 ? 'ممتاز' : hPct >= 50 ? 'جيد' : 'يحتاج متابعة']);
         r.alignment = { horizontal: 'center' };
@@ -343,7 +377,7 @@ export default function WeeklyReport({ user }) {
             .reduce((sum, r) => sum + r.pagesMemorized, 0);
           rowData.cumulative = sFullTotal;
 
-          const sReq = (st.dailyTarget || 0) * 6;
+          const sReq = (st.dailyTarget || 0) * weekDays.length;
           const sPct = sReq > 0 ? Math.round((sTotal / sReq) * 100) : 0;
           rowData.pct = `${sPct}%`;
 
@@ -358,7 +392,7 @@ export default function WeeklyReport({ user }) {
               cell.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
             }
 
-            if (colNumber >= 5 && colNumber <= 10) { // Days (Heatmap)
+            if (colNumber >= 5 && colNumber <= (4 + weekDays.length)) { // Days (Heatmap)
               const cellVal = cell.value;
               if (cellVal === 'غ') {
                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
@@ -439,7 +473,7 @@ export default function WeeklyReport({ user }) {
           }
         });
 
-        const sReq = (st.dailyTarget || 0) * 6;
+        const sReq = (st.dailyTarget || 0) * weekDays.length;
         const sPct = sReq > 0 ? Math.round((sTotal / sReq) * 100) : 0;
 
         studentsData.push({
@@ -553,7 +587,7 @@ export default function WeeklyReport({ user }) {
               <button className="btn btn-secondary" onClick={() => shiftWeek(1)} title="الأسبوع القادم"><ChevronLeft size={18} /></button>
             </div>
           </div>
-          <div style={{ paddingBottom: '0.1rem' }}><div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.65rem 1rem', fontSize: '0.82rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>📅 الأسبوع {weekName} | {weekDays[0]?.shortDate} — {weekDays[5]?.shortDate}</div></div>
+          <div style={{ paddingBottom: '0.1rem' }}><div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.65rem 1rem', fontSize: '0.82rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>📅 الأسبوع {weekName} | {weekDays[0]?.shortDate} — {weekDays[weekDays.length - 1]?.shortDate}</div></div>
         </div>
       </div>
 
@@ -575,6 +609,12 @@ export default function WeeklyReport({ user }) {
                 {weekDays.map(day => (<th key={day.dateStr} style={{ textAlign: 'center', minWidth: 85 }}><div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{day.label}</div><div>{day.shortDate}</div></th>))}
                 <th style={{ textAlign: 'center', minWidth: 120, background: 'rgba(34,197,94,0.08)' }}>مجموع الأسبوع</th>
                 <th style={{ textAlign: 'center', minWidth: 110, background: 'rgba(34,197,94,0.08)' }}>نسبة الإنجاز</th>
+                {!isParent && (
+                  <th style={{ textAlign: 'center', minWidth: 140, background: 'rgba(99,102,241,0.08)', color: 'var(--indigo-400, #818cf8)', borderRight: '2px solid rgba(99,102,241,0.2)' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'rgba(129,140,248,0.8)' }}>جميع الأسابيع</div>
+                    <div>التحصيل الإجمالي</div>
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -622,6 +662,21 @@ export default function WeeklyReport({ user }) {
                     })}
                     <td style={{ textAlign: 'center', background: 'rgba(34,197,94,0.04)' }}><div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}><span style={{ fontWeight: 900, fontSize: '1.05rem', color: pctColor }}>{total}</span><span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>/ {req}</span></div></td>
                     <td style={{ textAlign: 'center', background: 'rgba(34,197,94,0.04)', padding: '0.5rem 0.75rem' }}><div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={{ fontWeight: 800, color: pctColor, fontSize: '0.9rem' }}>{pct}%</span><div className="progress-bar-wrap"><div className="progress-bar-fill" style={{ width: `${Math.min(pct, 100)}%`, background: pctColor }} /></div></div></td>
+                    {!isParent && (() => {
+                      const cumTotal = Number(cumulativeTotals[st._id] || 0);
+                      return (
+                        <td style={{ textAlign: 'center', background: 'rgba(99,102,241,0.04)', padding: '0.5rem 0.75rem', borderRight: '2px solid rgba(99,102,241,0.15)' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                            <span style={{ fontWeight: 900, fontSize: '1.1rem', color: '#818cf8', letterSpacing: '0.5px' }}>
+                              {cumTotal}
+                            </span>
+                            <span style={{ fontSize: '0.65rem', color: 'rgba(129,140,248,0.7)', background: 'rgba(99,102,241,0.12)', borderRadius: 999, padding: '1px 7px', fontWeight: 600 }}>
+                              صفحة
+                            </span>
+                          </div>
+                        </td>
+                      );
+                    })()}
                   </tr>
                 );
               })}
@@ -643,6 +698,17 @@ export default function WeeklyReport({ user }) {
                 })}
                 <td style={{ textAlign: 'center', padding: '0.75rem 0.5rem', background: 'rgba(34,197,94,0.04)' }}><div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}><span style={{ fontWeight: 900, fontSize: '1.15rem', color: grandPct >= 80 ? 'var(--green-400)' : grandPct >= 50 ? 'var(--gold-400)' : 'var(--danger)' }}>{grandTotal}</span><span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>/ {grandReq}</span></div></td>
                 <td style={{ textAlign: 'center', padding: '0.75rem 0.75rem', background: 'rgba(34,197,94,0.04)' }}><div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={{ fontWeight: 900, fontSize: '1rem', color: grandPct >= 80 ? 'var(--green-400)' : grandPct >= 50 ? 'var(--gold-400)' : 'var(--danger)' }}>{grandPct}%</span><div className="progress-bar-wrap"><div className="progress-bar-fill" style={{ width: `${Math.min(grandPct, 100)}%`, background: grandPct >= 80 ? 'var(--green-400)' : grandPct >= 50 ? 'var(--gold-400)' : 'var(--danger)' }} /></div></div></td>
+                {!isParent && (() => {
+                  const grandCumulative = students.reduce((s, st) => s + Number(cumulativeTotals[st._id] || 0), 0);
+                  return (
+                    <td style={{ textAlign: 'center', padding: '0.75rem 0.5rem', background: 'rgba(99,102,241,0.12)', borderRight: '2px solid rgba(99,102,241,0.3)' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                        <span style={{ fontWeight: 900, fontSize: '1.2rem', color: '#818cf8' }}>{grandCumulative}</span>
+                        <span style={{ fontSize: '0.68rem', color: 'rgba(129,140,248,0.8)', background: 'rgba(99,102,241,0.15)', borderRadius: 999, padding: '1px 7px', fontWeight: 700 }}>إجمالي الحلقة</span>
+                      </div>
+                    </td>
+                  );
+                })()}
               </tr>
             </tfoot>
           </table>

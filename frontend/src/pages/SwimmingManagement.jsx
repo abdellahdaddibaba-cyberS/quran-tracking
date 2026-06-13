@@ -150,12 +150,12 @@ export default function SwimmingManagement() {
     }
   };
 
-  // التحقق مما إذا كان التاريخ المحدد هو يوم سبت بدءاً من الأسبوع الثاني
+  // التحقق مما إذا كان التاريخ المحدد هو يوم سبت بدءاً من الأسبوع الأول
   const isSelectedDateSaturday = useMemo(() => {
     if (!selectedDate) return false;
     const [y, m, d] = selectedDate.split('-').map(Number);
     const dateObj = new Date(y, m - 1, d);
-    return dateObj.getDay() === 6 && selectedDate >= '2026-06-27';
+    return dateObj.getDay() === 6 && selectedDate >= '2026-06-20';
   }, [selectedDate]);
 
   // تصفية الطلاب حسب اسم البحث
@@ -227,7 +227,7 @@ export default function SwimmingManagement() {
         }}>
           <AlertCircle size={20} style={{ flexShrink: 0 }} />
           <div>
-            <strong>توليد تلقائي نشط:</strong> هذا التاريخ يقع في يوم السبت (الأسبوع الثاني فما فوق). يتم تحديد الطلاب تلقائياً إذا حققوا المطلوب من السبت إلى الخميس: <strong>(القسط اليومي × 6 أيام)</strong>. استظهار السور يحتسب بنصف القسط اليومي. يمكنك التعديل يدوياً بالضغط على الطلاب ثم الحفظ.
+            <strong>توليد تلقائي نشط:</strong> هذا التاريخ يقع في يوم السبت. يتم تحديد الطلاب تلقائياً إذا حققوا المطلوب من أيام التحصيل (القسط اليومي × 5 أيام للأسبوع الأول، و6 أيام لباقي الأسابيع). استظهار السور يحتسب بنصف القسط اليومي. يمكنك التعديل يدوياً بالضغط على الطلاب ثم الحفظ.
           </div>
         </div>
       )}

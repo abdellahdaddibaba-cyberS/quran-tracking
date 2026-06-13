@@ -7,6 +7,8 @@ import { Calendar, CheckCircle, XCircle, AlertCircle, Trophy, UserX, UserCheck, 
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { LoadingView } from '../../components/ui/LoadingView';
 import { spacing, radius, cardShadow } from '../../constants/layout';
+import { useAuth } from '../../context/AuthContext';
+import { cleanStudentName } from '../../utils/name';
 
 export default function StudentDetailScreen() {
   const { colors, theme } = useAppTheme();
@@ -15,6 +17,9 @@ export default function StudentDetailScreen() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const { user } = useAuth();
+
+  const displayName = data?.student?.name ? cleanStudentName(data.student.name, user?.fullName || '') : '';
 
   useEffect(() => {
     fetchTracking();
@@ -24,20 +29,40 @@ export default function StudentDetailScreen() {
     try {
       const res = await mobileAPI.getTracking(id as string);
 
-      // Group records by week (starting on Saturday)
+      // Group records by week (Week 1: Sun-Thu, other weeks: Sat-Thu)
       const records = res.data.data.tracking || [];
       const groups: Record<string, any[]> = {};
 
       records.forEach((record: any) => {
-        const d = new Date(record.date);
-        const day = d.getDay(); // Sunday is 0, Saturday is 6
-        const diff = day; // Distance from Sunday
+        // Parse date in local time to avoid timezone offset issues
+        const dateParts = record.date.split('T')[0].split('-');
+        const yVal = parseInt(dateParts[0], 10);
+        const mVal = parseInt(dateParts[1], 10);
+        const dVal = parseInt(dateParts[2], 10);
+        const d = new Date(yVal, mVal - 1, dVal);
 
-        const weekStart = new Date(d);
-        weekStart.setDate(d.getDate() - diff);
+        const yStr = d.getFullYear();
+        const mStr = String(d.getMonth() + 1).padStart(2, '0');
+        const dStr = String(d.getDate()).padStart(2, '0');
+        const dateStr = `${yStr}-${mStr}-${dStr}`;
 
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 5); // Sunday to Friday (6 days)
+        let weekStart: Date;
+        let weekEnd: Date;
+
+        if (dateStr < '2026-06-20') {
+          // Week 1: Sunday to Thursday (June 14 to June 18)
+          weekStart = new Date(2026, 5, 14);
+          weekEnd = new Date(2026, 5, 18);
+        } else {
+          // Other weeks: Saturday to Thursday (6 days)
+          const day = d.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
+          const diffToSat = (day + 1) % 7;
+          weekStart = new Date(d);
+          weekStart.setDate(d.getDate() - diffToSat);
+
+          weekEnd = new Date(weekStart);
+          weekEnd.setDate(weekStart.getDate() + 5); // Saturday + 5 days = Thursday
+        }
 
         const weekLabel = `من ${weekStart.toLocaleDateString('ar-DZ', { month: 'short', day: 'numeric' })} إلى ${weekEnd.toLocaleDateString('ar-DZ', { month: 'short', day: 'numeric' })}`;
 
@@ -213,10 +238,10 @@ export default function StudentDetailScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ title: data?.student?.name || 'تفاصيل التحصيل', headerShown: false }} />
+      <Stack.Screen options={{ title: displayName || 'تفاصيل التحصيل', headerShown: false }} />
 
       <ScreenHeader
-        title={data?.student?.name || 'تفاصيل التحصيل'}
+        title={displayName || 'تفاصيل التحصيل'}
         subtitle="سجل الحفظ والحضور"
         right={
           <View style={{ flexDirection: 'row-reverse', gap: 8, alignItems: 'center' }}>

@@ -403,6 +403,16 @@ const givePrize = async (req, res) => {
       console.error('Failed to send prize notification:', notifErr);
     }
 
+    // Trigger database sync to Supabase in background
+    try {
+      const { runSync } = require('../sync_to_supabase');
+      runSync().catch(err => {
+        console.error('⚠️ [Sync on Prize Give] Failed to sync to Supabase:', err.message);
+      });
+    } catch (syncErr) {
+      console.error('⚠️ [Sync on Prize Give] Failed to require sync_to_supabase:', syncErr.message);
+    }
+
     res.json({ success: true, message: 'تم تسليم الجائزة بنجاح' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -447,109 +457,97 @@ const getImprovementAwards = async (req, res) => {
     }
 
     const [y, m, d] = date.split('-').map(Number);
-    const dateObj = new Date(y, m - 1, d);
+    const inputObj = new Date(y, m - 1, d);
 
-    // Current Week (Saturday to Thursday)
-    const currentStartObj = new Date(dateObj);
-    currentStartObj.setDate(dateObj.getDate() - 7);
-    const currentEndObj = new Date(dateObj);
-    currentEndObj.setDate(dateObj.getDate() - 2);
+    const toDateStr = (dObj) =>
+      `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
 
-    // Previous Week (Saturday to Thursday of previous week)
-    const prevStartObj = new Date(dateObj);
-    prevStartObj.setDate(dateObj.getDate() - 14);
-    const prevEndObj = new Date(dateObj);
-    prevEndObj.setDate(dateObj.getDate() - 9);
+    // ─── نحسب الخميس الأقرب للتاريخ المُدخل (أو نفسه إن كان خميساً) ───
+    const dayOfWeek = inputObj.getDay(); // 0=أحد، 4=خميس، 5=جمعة، 6=سبت
+    const diffToThursday = (4 - dayOfWeek + 7) % 7;
+    const thursday = new Date(inputObj);
+    thursday.setDate(inputObj.getDate() + diffToThursday);
 
-    const toDateStr = (dObj) => {
-      return `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
-    };
+    // ─── الأسبوع الحالي: السبت → الخميس (6 أيام) ───
+    // السبت = الخميس ناقص 5 أيام
+    const currentSat = new Date(thursday);
+    currentSat.setDate(thursday.getDate() - 5);
+    const currentStart = toDateStr(currentSat);
+    const currentEnd   = toDateStr(thursday);
 
-    const currentStart = toDateStr(currentStartObj);
-    const currentEnd = toDateStr(currentEndObj);
-    const prevStart = toDateStr(prevStartObj);
-    const prevEnd = toDateStr(prevEndObj);
+    // ─── الأسبوع الماضي: السبت → الخميس السابق ───
+    const prevThursday = new Date(thursday);
+    prevThursday.setDate(thursday.getDate() - 7);
+    const prevSat = new Date(currentSat);
+    prevSat.setDate(currentSat.getDate() - 7);
+    const prevStart = toDateStr(prevSat);
+    const prevEnd   = toDateStr(prevThursday);
 
-    // Get all active students with dailyTarget <= 2
-    const Student = require('../models/Student');
-    const Halaqa = require('../models/Halaqa');
-    const DailyTracking = require('../models/DailyTracking');
-
+    // ─── جلب الطلاب الذين قسطهم ≤ 2 صفحة ───
     const students = await Student.findAll({
-      where: {
-        isActive: true,
-        dailyTarget: {
-          [Op.lte]: 2
-        }
-      },
-      include: [{
-        model: Halaqa,
-        as: 'halaqa',
-        attributes: ['name']
-      }]
+      where: { isActive: true, dailyTarget: { [Op.lte]: 2 } },
+      include: [{ model: Halaqa, as: 'halaqa', attributes: ['name'] }]
     });
 
     const studentIds = students.map(s => s._id);
 
-    // Fetch tracking data for both weeks
+    // ─── جلب سجلات الأسبوعين ───
     const trackings = await DailyTracking.findAll({
       where: {
-        studentId: {
-          [Op.in]: studentIds
-        },
-        date: {
-          [Op.between]: [prevStart, currentEnd]
-        }
+        studentId: { [Op.in]: studentIds },
+        date: { [Op.between]: [prevStart, currentEnd] }
       }
     });
 
-    // Process tracking data
+    // ─── تجميع الصفحات لكل طالب وكل أسبوع ───
     const trackingMap = {};
     trackings.forEach(t => {
       const sid = t.studentId;
-      if (!trackingMap[sid]) {
-        trackingMap[sid] = [];
-      }
+      if (!trackingMap[sid]) trackingMap[sid] = [];
       trackingMap[sid].push(t);
     });
 
     const winners = [];
 
     students.forEach(student => {
-      const studentTrackings = trackingMap[student._id] || [];
-      
-      let prevTotal = 0;
+      const recs = trackingMap[student._id] || [];
+      let prevTotal    = 0;
       let currentTotal = 0;
 
-      studentTrackings.forEach(t => {
+      recs.forEach(t => {
+        if ((t.attendance || 'present') === 'absent') return;
         const pages = Number(t.pagesMemorized || 0);
-        const attendance = t.attendance || 'present';
-        
-        if (attendance === 'present') {
-          if (t.date >= prevStart && t.date <= prevEnd) {
-            prevTotal += pages;
-          } else if (t.date >= currentStart && t.date <= currentEnd) {
-            currentTotal += pages;
-          }
+        const tDate = typeof t.date === 'string'
+          ? t.date.slice(0, 10)
+          : toDateStr(new Date(t.date));
+
+        if (tDate >= prevStart && tDate <= prevEnd) {
+          prevTotal += pages;
+        } else if (tDate >= currentStart && tDate <= currentEnd) {
+          currentTotal += pages;
         }
       });
 
-      // الطالب الذي قسطه صفحتين أو أقل يترشح في حالتين:
-      // 1. حقق 9 صفحات فما فوق هذا الأسبوع.
-      // 2. أو حقق 14 صفحة هذا الأسبوع وكان قد حقق 9 صفحات في الأسبوع السابق (وهي مشمولة تلقائياً في الأولى، ولكن نحددها بـ isRaised لتمييز التحسن).
-      if (currentTotal >= 9) {
-        const isRaised = currentTotal >= 14 && prevTotal >= 9;
+      // ─── شروط جائزة التحسن ───
+      // 1. قسط ≤ 2 صفحة (مضمون من الاستعلام)
+      // 2. الأسبوع الماضي ≥ 9 صفحات
+      // 3. هذا الأسبوع ≥ 14 صفحة (تحسن بـ5 صفحات على الأقل)
+      if (prevTotal >= 9 && currentTotal >= 14) {
         winners.push({
-          _id: student._id,
-          name: student.name,
-          halaqaName: student.halaqa?.name || '—',
+          _id:         student._id,
+          name:        student.name,
+          halaqaName:  student.halaqa?.name || '—',
           dailyTarget: student.dailyTarget,
           prevTotal,
           currentTotal,
-          isRaised
+          improvement: currentTotal - prevTotal,
+          isRaised:    true
         });
       }
     });
+
+    // ترتيب: الأكثر تحسناً أولاً
+    winners.sort((a, b) => b.improvement - a.improvement);
 
     res.json({
       success: true,
@@ -557,14 +555,17 @@ const getImprovementAwards = async (req, res) => {
         winners,
         ranges: {
           current: { start: currentStart, end: currentEnd },
-          prev: { start: prevStart, end: prevEnd }
-        }
+          prev:    { start: prevStart,    end: prevEnd    }
+        },
+        thursday: toDateStr(thursday)
       }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+
 
 module.exports = {
   getLowPageStudents,

@@ -206,7 +206,7 @@ const testPushNotification = async (req, res) => {
 const submitFeedback = async (req, res) => {
   try {
     const { type, message } = req.body;
-    
+
     if (!type || !message) {
       return res.status(400).json({
         success: false,

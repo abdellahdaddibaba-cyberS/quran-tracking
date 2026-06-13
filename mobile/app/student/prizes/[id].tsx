@@ -8,6 +8,8 @@ import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { LoadingView } from '../../../components/ui/LoadingView';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { spacing, radius, cardShadow } from '../../../constants/layout';
+import { useAuth } from '../../../context/AuthContext';
+import { cleanStudentName } from '../../../utils/name';
 
 export default function PrizesScreen() {
   const { colors, theme } = useAppTheme();
@@ -15,6 +17,9 @@ export default function PrizesScreen() {
   const { id } = useLocalSearchParams();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  const displayName = data?.student?.name ? cleanStudentName(data.student.name, user?.fullName || '') : '';
 
   useEffect(() => {
     fetchTracking();
@@ -100,7 +105,7 @@ export default function PrizesScreen() {
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ title: 'الجوائز', headerShown: false }} />
 
-      <ScreenHeader title={`جوائز ${data?.student?.name || ''}`} subtitle="إنجازات التحصيل والمواظبة" />
+      <ScreenHeader title={`جوائز ${displayName}`} subtitle="إنجازات التحصيل والمواظبة" />
 
       <FlatList
         data={allPrizes}

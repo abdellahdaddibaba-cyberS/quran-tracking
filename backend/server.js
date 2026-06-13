@@ -52,6 +52,7 @@ app.use('/api/ai',       require('./routes/aiRoutes'));
 app.use('/api/auth',     require('./routes/authRoutes'));
 app.use('/api/mobile',   require('./routes/mobileRoutes'));
 app.use('/api/users',    require('./routes/userRoutes'));
+app.use('/api/sync',     require('./routes/syncRoutes'));
 
 // مسار التحقق من الخادم
 app.get('/', (req, res) => {

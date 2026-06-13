@@ -54,11 +54,12 @@ export const studentsAPI = {
 
 // ─── Tracking API ─────────────────────────────────────────────────
 export const trackingAPI = {
-  bulkInsert:       (records)     => api.post('/tracking/bulk', { records }),
-  getByStudent:     (studentId, params) => api.get(`/tracking/${studentId}`, { params }),
-  getByHalaqa:      (halaqaId, params)  => api.get(`/tracking/halaqa/${halaqaId}`, { params }),
-  deleteHalaqaDay:  (halaqaId, date)    => api.delete(`/tracking/halaqa/${halaqaId}`, { params: { date } }),
-  getAllRange:      (params)            => api.get('/tracking/all', { params }),
+  bulkInsert:           (records)          => api.post('/tracking/bulk', { records }),
+  getByStudent:         (studentId, params) => api.get(`/tracking/${studentId}`, { params }),
+  getByHalaqa:          (halaqaId, params)  => api.get(`/tracking/halaqa/${halaqaId}`, { params }),
+  deleteHalaqaDay:      (halaqaId, date)    => api.delete(`/tracking/halaqa/${halaqaId}`, { params: { date } }),
+  getAllRange:           (params)            => api.get('/tracking/all', { params }),
+  getHalaqaCumulative:  (halaqaId)          => api.get(`/tracking/halaqa/${halaqaId}/cumulative`),
 };
 
 // ─── AI API ───────────────────────────────────────────────────────
@@ -99,6 +100,10 @@ export const mobileAPI = {
   getStudents: () => api.get('/mobile/students'),
   getTracking: (studentId) => api.get(`/mobile/tracking/${studentId}`),
   getWeeklyReport: (params) => api.get('/mobile/weekly-report', { params }),
+};
+
+export const syncAPI = {
+  runSync: () => api.post('/sync/run', {}, { timeout: 120000 }), // مهلة 2 دقيقة لأن المزامنة قد تأخذ وقتاً
 };
 
 export default api;
