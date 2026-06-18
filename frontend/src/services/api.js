@@ -77,6 +77,7 @@ export const reportsAPI = {
   getAwardStudents: () => api.get('/reports/award-students'),
   getRecentPrizes: () => api.get('/reports/recent-prizes'),
   getImprovementAwards: (date) => api.get('/reports/improvement-awards', { params: { date } }),
+  getSurahPerformanceAwards: () => api.get('/reports/surah-performance-awards'),
   givePrize: (data) => api.post('/reports/give-prize', data),
 };
 

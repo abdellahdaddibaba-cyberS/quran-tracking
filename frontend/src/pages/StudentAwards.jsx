@@ -40,6 +40,11 @@ export default function StudentAwards() {
   const [impLoading, setImpLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
 
+  // Surah Performance Tab States
+  const [surahAwardsData, setSurahAwardsData] = useState([]);
+  const [surahLoading, setSurahLoading] = useState(false);
+  const [expandedStudentId, setExpandedStudentId] = useState(null);
+
   const navigate = useNavigate();
 
   const [syncing, setSyncing] = useState(false);
@@ -102,6 +107,24 @@ export default function StudentAwards() {
     }
   }, [selectedThursday, activeTab]);
 
+  const fetchSurahPerformanceData = async () => {
+    setSurahLoading(true);
+    try {
+      const res = await reportsAPI.getSurahPerformanceAwards();
+      setSurahAwardsData(res.data.data || []);
+    } catch (err) {
+      toast.error('فشل تحميل جوائز الأداء في السورة');
+    } finally {
+      setSurahLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'surahPerformance') {
+      fetchSurahPerformanceData();
+    }
+  }, [activeTab]);
+
   const toggleStudent = (id) => {
     setSelected(prev => {
       const next = new Set(prev);
@@ -150,7 +173,11 @@ export default function StudentAwards() {
       await reportsAPI.givePrize({ studentId, prizeTitle: title });
       toast.success('تم تسليم الجائزة بنجاح 🏆');
       fetchData();
-      fetchImprovementData(selectedThursday);
+      if (activeTab === 'improvement') {
+        fetchImprovementData(selectedThursday);
+      } else if (activeTab === 'surahPerformance') {
+        fetchSurahPerformanceData();
+      }
     } catch (err) {
       toast.error('فشل تسليم الجائزة');
     } finally {
@@ -174,7 +201,11 @@ export default function StudentAwards() {
     setSubmitting(false);
     toast.success(`تم تسليم الجائزة لـ ${successCount} طالب بنجاح 🏆`);
     fetchData();
-    fetchImprovementData(selectedThursday);
+    if (activeTab === 'improvement') {
+      fetchImprovementData(selectedThursday);
+    } else if (activeTab === 'surahPerformance') {
+      fetchSurahPerformanceData();
+    }
   };
 
   const prevWeek = () => {
@@ -281,6 +312,20 @@ export default function StudentAwards() {
         >
           <TrendingUp size={16} />
           جائزة التحسن (تلقائي)
+        </button>
+        <button
+          onClick={() => setActiveTab('surahPerformance')}
+          style={{
+            background: 'none', border: 'none',
+            color: activeTab === 'surahPerformance' ? 'var(--gold-400)' : 'var(--text-muted)',
+            fontWeight: 700, padding: '0.5rem 1rem', cursor: 'pointer',
+            borderBottom: activeTab === 'surahPerformance' ? '2px solid var(--gold-400)' : 'none',
+            fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8,
+            transition: 'color 0.2s'
+          }}
+        >
+          <Award size={16} />
+          جائزة الأداء في السورة (تلقائي)
         </button>
       </div>
 
@@ -429,7 +474,7 @@ export default function StudentAwards() {
             </div>
           )}
         </>
-      ) : (
+      ) : activeTab === 'improvement' ? (
         <>
           {/* ─── Week Navigator (Improvement Tab) ──────────────── */}
           <div style={{
@@ -472,7 +517,7 @@ export default function StudentAwards() {
                 <li>قسط الطالب اليومي <b>صفحتان أو أقل</b>.</li>
                 <li>في الأسبوع الماضي (السبت→الخميس) حقق <b>9 صفحات أو أكثر</b>.</li>
                 <li>في هذا الأسبوع حقق <b>14 صفحة أو أكثر</b> (تحسن بـ5 صفحات على الأقل).</li>
-                <li>تُقدَّم الجائزة <b>يوم الخميس</b> من كل أسبوع، بدءاً من الأسبوع الثالث.</li>
+                <li>تُقدَّم الجائزة <b>يوم الخميس</b> من كل أسبوع, بدءاً من الأسبوع الثالث.</li>
               </ul>
             </div>
           </div>
@@ -545,6 +590,140 @@ export default function StudentAwards() {
                               <button
                                 className="btn btn-gold btn-sm"
                                 onClick={() => handleGiveSinglePrize(st._id, 'جائزة تحسن')}
+                                disabled={actionLoading === st._id}
+                              >
+                                {actionLoading === st._id ? <Loader2 size={13} className="animate-spin" /> : <Trophy size={13} />}
+                                تسليم الجائزة
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="alert" style={{
+            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(251, 191, 36, 0.03))',
+            border: '1px solid rgba(245, 158, 11, 0.15)',
+            color: 'var(--gold-400)',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            padding: '1rem',
+            borderRadius: 'var(--radius-md)'
+          }}>
+            <Zap size={18} />
+            <div>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: '0.88rem' }}>معيار جائزة الأداء في السورة:</p>
+              <ul style={{ margin: '0.2rem 0 0 0', paddingRight: '1rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                <li>حفظ سورة كاملة مع تفعيل خيار <b>"أتم السورة"</b>.</li>
+                <li>كتابة ملاحظة تحتوي على <b>"ممتاز"</b> و <b>"من الوهلة الأولى"</b> (أو "أول مرة").</li>
+                <li>تُمنح الجائزة للطالب عند استظهار <b>سورتين (2)</b> بهذه المواصفات.</li>
+              </ul>
+            </div>
+          </div>
+
+          {surahLoading ? (
+            <div className="loading-wrap"><div className="spinner" /><span>جاري حساب استحقاق الطلاب لجائزة الأداء في السورة...</span></div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', marginBottom: '3rem' }}>
+              
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{
+                  padding: '0.85rem 1.25rem',
+                  background: 'rgba(59, 130, 246, 0.08)',
+                  borderBottom: '1px solid var(--border)',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Award size={18} color="var(--info)" />
+                    <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--text)' }}>
+                      الطلاب المستحقون لجائزة الأداء في السورة
+                    </span>
+                    <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.15)', color: 'var(--info)', fontSize: '0.8rem' }}>
+                      {surahAwardsData.length}
+                    </span>
+                  </div>
+                  {surahAwardsData.length > 0 && (
+                    <button
+                      className="btn btn-gold btn-sm"
+                      onClick={() => handleGiveBatchPrizes(surahAwardsData, 'جائزة الأداء في السورة')}
+                      disabled={submitting}
+                    >
+                      تسليم للجميع
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ padding: '0.5rem' }}>
+                  {surahAwardsData.length === 0 ? (
+                    <p style={{ textAlign: 'center', padding: '2rem', margin: 0, color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                      لا يوجد مستحقون لجائزة الأداء في السورة حالياً.
+                    </p>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                          <th style={{ padding: '0.5rem 1rem', textAlign: 'right' }}>اسم الطالب</th>
+                          <th style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>الحلقة</th>
+                          <th style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>السور الممتازة</th>
+                          <th style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>الجوائز المستلمة سابقاً</th>
+                          <th style={{ padding: '0.5rem 1rem', textAlign: 'center', color: 'var(--gold-400)' }}>الجوائز المستحقة المعلقة</th>
+                          <th style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>الإجراءات</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {surahAwardsData.map(st => (
+                          <tr key={st._id} style={{ borderBottom: '1px solid var(--border)' }}>
+                            <td style={{ padding: '0.75rem 1rem', fontWeight: 700 }}>{st.name}</td>
+                            <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>{st.halaqaName}</td>
+                            <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                                onClick={() => setExpandedStudentId(expandedStudentId === st._id ? null : st._id)}
+                              >
+                                {st.excellentSurahCount} سور 🔍
+                              </button>
+                              {expandedStudentId === st._id && (
+                                <div style={{
+                                  marginTop: '0.5rem',
+                                  background: 'var(--bg)',
+                                  padding: '0.8rem',
+                                  borderRadius: '6px',
+                                  border: '1px solid var(--border)',
+                                  textAlign: 'right',
+                                  maxWidth: '350px',
+                                  fontSize: '0.82rem',
+                                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                                }}>
+                                  <div style={{ fontWeight: 'bold', marginBottom: '0.25rem', color: 'var(--gold-400)' }}>السور المستظهرة بممتاز:</div>
+                                  <ul style={{ margin: 0, paddingRight: '1rem', listStyleType: 'disc', color: 'var(--text-secondary)' }}>
+                                    {st.matchingRecords.map((rec, rIdx) => (
+                                      <li key={rIdx} style={{ marginBottom: '4px' }}>
+                                        <b style={{ color: 'var(--text-primary)' }}>{rec.date}:</b> {rec.notes}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ padding: '0.75rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>{st.awardsGivenCount}</td>
+                            <td style={{ padding: '0.75rem 1rem', textAlign: 'center', color: 'var(--gold-400)', fontWeight: 700 }}>
+                              {st.pendingAwardsCount}
+                            </td>
+                            <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                              <button
+                                className="btn btn-gold btn-sm"
+                                onClick={() => handleGiveSinglePrize(st._id, 'جائزة الأداء في السورة')}
                                 disabled={actionLoading === st._id}
                               >
                                 {actionLoading === st._id ? <Loader2 size={13} className="animate-spin" /> : <Trophy size={13} />}

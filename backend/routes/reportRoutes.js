@@ -9,7 +9,8 @@ const {
   getAwardStudents,
   givePrize,
   getRecentPrizes,
-  getImprovementAwards
+  getImprovementAwards,
+  getSurahPerformanceAwards
 } = require('../controllers/reportController');
 const { protect, staffOnly } = require('../middleware/authMiddleware');
 
@@ -23,6 +24,7 @@ router.post('/delete-session', deleteSession);
 router.get('/award-students', getAwardStudents);
 router.get('/recent-prizes', getRecentPrizes);
 router.get('/improvement-awards', getImprovementAwards);
+router.get('/surah-performance-awards', getSurahPerformanceAwards);
 router.post('/give-prize', givePrize);
 
 module.exports = router;

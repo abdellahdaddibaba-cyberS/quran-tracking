@@ -344,7 +344,10 @@ const givePrize = async (req, res) => {
     let description = '';
     const titleText = prizeTitle || 'جائزة الانضباط';
 
-    if (titleText.includes('تحسن')) {
+    if (titleText.includes('الأداء في السورة') || titleText.includes('الاداء في السورة')) {
+      icon = 'crown';
+      description = 'مُنحت للطالب لاستظهاره سورتين بحفظ ممتاز من الوهلة الأولى.';
+    } else if (titleText.includes('تحسن')) {
       icon = 'trophy';
       description = 'مُنحت للطالب لتميزه وتحسن أدائه وحفظه خلال الأسبوع.';
     } else if (titleText.includes('انضباط') || titleText.includes('مواظبة')) {
@@ -533,6 +536,99 @@ const getImprovementAwards = async (req, res) => {
   }
 };
 
+const getSurahPerformanceAwards = async (req, res) => {
+  try {
+    const students = await Student.findAll({
+      where: { isActive: true },
+      include: [{ model: Halaqa, as: 'halaqa', attributes: ['name'] }]
+    });
+
+    const studentIds = students.map(s => s._id);
+
+    const trackings = await DailyTracking.findAll({
+      where: {
+        studentId: { [Op.in]: studentIds },
+        isSurahCompleted: true
+      },
+      attributes: ['studentId', 'date', 'notes']
+    });
+
+    const normalizeAr = (str) =>
+      (str || '')
+        .replace(/[أإآا]/g, 'ا')
+        .replace(/ة/g, 'ه')
+        .replace(/ى/g, 'ي')
+        .replace(/[\u064B-\u065F\u0670ـ]/g, '')
+        .trim();
+
+    const matchesMap = {};
+    trackings.forEach(t => {
+      const normalizedNotes = normalizeAr(t.notes || '');
+      const hasExcel = normalizedNotes.includes('ممتاز');
+      const hasFirstTime = normalizedNotes.includes('وهل') || normalizedNotes.includes('اول') || normalizedNotes.includes('اول مره') || normalizedNotes.includes('اول مرة');
+
+      if (hasExcel && hasFirstTime) {
+        if (!matchesMap[t.studentId]) {
+          matchesMap[t.studentId] = [];
+        }
+        matchesMap[t.studentId].push(t);
+      }
+    });
+
+    const existingPrizes = await Prize.findAll({
+      where: {
+        studentId: { [Op.in]: studentIds },
+        title: {
+          [Op.or]: [
+            { [Op.like]: '%الأداء في السورة%' },
+            { [Op.like]: '%الاداء في السورة%' }
+          ]
+        }
+      },
+      attributes: ['studentId']
+    });
+
+    const prizeCounts = {};
+    existingPrizes.forEach(p => {
+      prizeCounts[p.studentId] = (prizeCounts[p.studentId] || 0) + 1;
+    });
+
+    const eligibleStudents = [];
+    students.forEach(student => {
+      const matches = matchesMap[student._id] || [];
+      const N = matches.length;
+      const P = prizeCounts[student._id] || 0;
+
+      if (N >= 2) {
+        const eligibleCount = Math.floor(N / 2);
+        const pendingCount = eligibleCount - P;
+
+        if (pendingCount > 0) {
+          eligibleStudents.push({
+            _id: student._id,
+            name: student.name,
+            halaqaName: student.halaqa?.name || '—',
+            excellentSurahCount: N,
+            awardsGivenCount: P,
+            pendingAwardsCount: pendingCount,
+            matchingRecords: matches.map(m => ({
+              date: m.date,
+              notes: m.notes
+            }))
+          });
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      data: eligibleStudents
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   getLowPageStudents,
   getIndividualSessions,
@@ -542,5 +638,6 @@ module.exports = {
   getAwardStudents,
   givePrize,
   getRecentPrizes,
-  getImprovementAwards
+  getImprovementAwards,
+  getSurahPerformanceAwards
 };
