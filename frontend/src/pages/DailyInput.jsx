@@ -276,11 +276,11 @@ export default function DailyInput() {
 
     let nextSurah;
     if (currentIdx === -1) {
-      // إذا لم تكن هناك سورة، نبدأ من الفاتحة كبداية تلقائية
-      nextSurah = SURAHS[0];
+      // إذا لم تكن هناك سورة، نبدأ من سورة الناس كبداية تلقائية (الترتيب التصاعدي من قصار السور)
+      nextSurah = SURAHS[SURAHS.length - 1];
     } else {
-      const nextIdx = currentIdx + 1;
-      if (nextIdx >= SURAHS.length) {
+      const nextIdx = currentIdx - 1;
+      if (nextIdx < 0) {
         toast.success(`🎉 ${studentName} أتمَّ القرآن الكريم كاملاً!`, { duration: 6000 });
         return;
       }

@@ -194,8 +194,8 @@ export default function HomeScreen() {
 
         <View style={styles.profileRow}>
           <View style={styles.profileTextContainer}>
-            <Text style={styles.welcome}>{getGreeting()}</Text>
-            <Text style={styles.userName}>{user?.fullName || 'ولي الأمر'}</Text>
+            <Text style={styles.welcome} numberOfLines={1}>{getGreeting()}</Text>
+            <Text style={styles.userName} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>{user?.fullName || 'ولي الأمر'}</Text>
           </View>
         </View>
       </Animated.View>
@@ -273,11 +273,14 @@ const getStyles = (colors: any, theme: string, typography: any) => StyleSheet.cr
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xl + 12,
     paddingBottom: spacing.md,
+    gap: spacing.sm,
   },
   profileRow: {
+    flex: 1,
     flexDirection: 'row-reverse',
     alignItems: 'center',
     gap: spacing.sm + 4,
+    minWidth: 0,
   },
   profileAvatar: {
     width: 48,
@@ -291,24 +294,28 @@ const getStyles = (colors: any, theme: string, typography: any) => StyleSheet.cr
     fontFamily: typography.bold,
   },
   profileTextContainer: {
+    flex: 1,
     alignItems: 'flex-end',
+    minWidth: 0,
   },
   welcome: {
     color: colors.textMuted,
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: typography.semiBold,
     textAlign: 'right',
   },
   userName: {
     color: colors.text,
-    fontSize: 20,
+    fontSize: 16,
     fontFamily: typography.black,
     textAlign: 'right',
-    marginTop: 4,
+    marginTop: 2,
+    lineHeight: 22,
   },
   headerActions: {
     flexDirection: 'row',
-    gap: spacing.sm + 2,
+    gap: spacing.sm,
+    flexShrink: 0,
   },
   logoutBtn: {
     width: 40,
