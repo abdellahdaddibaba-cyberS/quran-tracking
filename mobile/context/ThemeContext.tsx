@@ -48,16 +48,25 @@ export const Colors = {
   },
 };
 
+export const Typography = {
+  regular: 'Cairo-Regular',
+  semiBold: 'Cairo-SemiBold',
+  bold: 'Cairo-Bold',
+  black: 'Cairo-Black',
+};
+
 type ThemeContextType = {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
   colors: typeof Colors.light;
+  typography: typeof Typography;
 };
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: 'dark',
   toggleTheme: () => {},
   colors: Colors.dark,
+  typography: Typography,
 });
 
 export const useAppTheme = () => useContext(ThemeContext);
@@ -84,7 +93,7 @@ export const AppThemeProvider: React.FC<{children: React.ReactNode}> = ({ childr
   const colors = theme === 'dark' ? Colors.dark : Colors.light;
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, colors }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, colors, typography: Typography }}>
       {children}
     </ThemeContext.Provider>
   );

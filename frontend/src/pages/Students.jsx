@@ -233,8 +233,10 @@ const normalizeArabicKey = (str) => {
   return String(str)
     .trim()
     .toLowerCase()
+    .replace(/^سوره?\s+/, '')
     .replace(/[أإآ]/g, 'ا')
     .replace(/ة/g, 'ه')
+    .replace(/^ال/, '')
     .replace(/\s+/g, '');
 };
 

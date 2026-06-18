@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { spacing, radius, cardShadow } from '../constants/layout';
 import { EmptyState } from '../components/ui/EmptyState';
 import { cleanStudentName } from '../utils/name';
+import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 
 const LEVEL_TRANSLATIONS: { [key: string]: string } = {
   level1: 'المستوى الأول',
@@ -25,8 +26,8 @@ const LEVEL_COLORS: { [key: string]: { border: string; bg: string; text: string 
 };
 
 export default function HomeScreen() {
-  const { colors, theme, toggleTheme } = useAppTheme();
-  const styles = getStyles(colors, theme);
+  const { colors, theme, toggleTheme, typography } = useAppTheme();
+  const styles = getStyles(colors, theme, typography);
   const { user, loading: authLoading, logout } = useAuth();
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,8 +84,6 @@ export default function HomeScreen() {
     router.push(`/student/${studentId}`);
   };
 
-
-
   // Dashboard Stats calculations
   const totalDailyTarget = useMemo(() => {
     return students.reduce((acc, curr) => acc + (curr.dailyTarget || 0), 0);
@@ -106,79 +105,81 @@ export default function HomeScreen() {
     );
   }
 
-  const renderStudent = ({ item }: { item: any }) => {
+  const renderStudent = ({ item, index }: { item: any, index: number }) => {
     const levelStyle = LEVEL_COLORS[item.level] || { border: colors.primary, bg: colors.primaryBg, text: colors.primary };
     const displayName = cleanStudentName(item.name, user?.fullName || '');
     
     return (
-      <TouchableOpacity
-        style={[
-          styles.studentCard,
-          cardShadow(theme),
-          { borderRightColor: levelStyle.border, borderRightWidth: 4 }
-        ]}
-        onPress={() => handleStudentPress(item._id)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.cardHeader}>
-          <View style={styles.chevronContainer}>
-            <ChevronLeft size={20} color={colors.textMuted} />
-          </View>
-          
-          <View style={styles.studentInfo}>
-            <Text style={styles.studentName}>{displayName}</Text>
-            <View style={{ flexDirection: 'row-reverse', gap: 6, marginTop: 6, alignItems: 'center' }}>
-              <View style={[styles.levelBadge, { backgroundColor: levelStyle.bg, marginTop: 0 }]}>
-                <Award size={13} color={levelStyle.border} />
-                <Text style={[styles.studentLevel, { color: levelStyle.text }]}>
-                  {LEVEL_TRANSLATIONS[item.level] || item.level}
-                </Text>
-              </View>
-              {item.hasSwimmingToday && (
-                <View style={styles.swimmingBadge}>
-                  <Waves size={12} color="#0ea5e9" />
-                  <Text style={styles.swimmingBadgeText}>سباحة اليوم</Text>
+      <Animated.View entering={FadeInDown.delay(index * 100).duration(600)}>
+        <TouchableOpacity
+          style={[
+            styles.studentCard,
+            cardShadow(theme),
+            { borderRightColor: levelStyle.border, borderRightWidth: 4 }
+          ]}
+          onPress={() => handleStudentPress(item._id)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.cardHeader}>
+            <View style={styles.chevronContainer}>
+              <ChevronLeft size={20} color={colors.textMuted} />
+            </View>
+            
+            <View style={styles.studentInfo}>
+              <Text style={styles.studentName}>{displayName}</Text>
+              <View style={{ flexDirection: 'row-reverse', gap: 6, marginTop: 6, alignItems: 'center' }}>
+                <View style={[styles.levelBadge, { backgroundColor: levelStyle.bg, marginTop: 0 }]}>
+                  <Award size={13} color={levelStyle.border} />
+                  <Text style={[styles.studentLevel, { color: levelStyle.text }]}>
+                    {LEVEL_TRANSLATIONS[item.level] || item.level}
+                  </Text>
                 </View>
-              )}
+                {item.hasSwimmingToday && (
+                  <View style={styles.swimmingBadge}>
+                    <Waves size={12} color="#0ea5e9" />
+                    <Text style={styles.swimmingBadgeText}>سباحة اليوم</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+            
+            <View style={[styles.avatar, { backgroundColor: levelStyle.border }]}>
+              <Text style={styles.avatarText}>{displayName ? displayName[0] : 'أ'}</Text>
             </View>
           </View>
-          
-          <View style={[styles.avatar, { backgroundColor: levelStyle.border }]}>
-            <Text style={styles.avatarText}>{displayName ? displayName[0] : 'أ'}</Text>
-          </View>
-        </View>
 
-        <View style={styles.cardFooter}>
-          <View style={styles.statContainer}>
-            <View style={[styles.statIconWrapper, { backgroundColor: colors.successBg }]}>
-              <BookOpen size={16} color={colors.success} />
+          <View style={styles.cardFooter}>
+            <View style={styles.statContainer}>
+              <View style={[styles.statIconWrapper, { backgroundColor: colors.successBg }]}>
+                <BookOpen size={16} color={colors.success} />
+              </View>
+              <View>
+                <Text style={styles.statLabel}>السورة الحالية</Text>
+                <Text style={styles.statValue}>{item.currentSurah || item.startSurah || 'غير محدد'}</Text>
+              </View>
             </View>
-            <View>
-              <Text style={styles.statLabel}>سورة البداية</Text>
-              <Text style={styles.statValue}>{item.startSurah || 'غير محدد'}</Text>
-            </View>
-          </View>
-          
-          <View style={styles.statDivider} />
+            
+            <View style={styles.statDivider} />
 
-          <View style={styles.statContainer}>
-            <View style={[styles.statIconWrapper, { backgroundColor: colors.goldBg }]}>
-              <Star size={16} color={colors.gold} />
-            </View>
-            <View>
-              <Text style={styles.statLabel}>القسط اليومي</Text>
-              <Text style={styles.statValue}>{item.dailyTarget || 0} صفحات</Text>
+            <View style={styles.statContainer}>
+              <View style={[styles.statIconWrapper, { backgroundColor: colors.goldBg }]}>
+                <Star size={16} color={colors.gold} />
+              </View>
+              <View>
+                <Text style={styles.statLabel}>القسط اليومي</Text>
+                <Text style={styles.statValue}>{item.dailyTarget || 0} صفحات</Text>
+              </View>
             </View>
           </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Top Welcome / Header Area */}
-      <View style={styles.header}>
+      <Animated.View entering={FadeInDown.duration(800)} style={styles.header}>
         <View style={styles.headerActions}>
           <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn} activeOpacity={0.7}>
             <LogOut size={20} color={colors.danger} />
@@ -197,10 +198,10 @@ export default function HomeScreen() {
             <Text style={styles.userName}>{user?.fullName || 'ولي الأمر'}</Text>
           </View>
         </View>
-      </View>
+      </Animated.View>
 
       {/* Parent Overview Dashboard Stats */}
-      <View style={styles.statsRow}>
+      <Animated.View entering={FadeInRight.delay(200).duration(800)} style={styles.statsRow}>
         {students.length <= 1 && (
           <View style={[styles.statBox, cardShadow(theme), { backgroundColor: colors.surface, borderColor: theme === 'dark' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(5, 150, 105, 0.15)' }]}>
             <View style={[styles.statBoxIcon, { backgroundColor: colors.successBg }]}>
@@ -222,7 +223,7 @@ export default function HomeScreen() {
             <Text style={styles.statBoxValue}>{students.length} أبناء</Text>
           </View>
         </View>
-      </View>
+      </Animated.View>
 
       {/* Main Content */}
       <View style={styles.content}>
@@ -254,7 +255,7 @@ export default function HomeScreen() {
   );
 }
 
-const getStyles = (colors: any, theme: string) => StyleSheet.create({
+const getStyles = (colors: any, theme: string, typography: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -287,7 +288,7 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   },
   profileAvatarText: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontFamily: typography.bold,
   },
   profileTextContainer: {
     alignItems: 'flex-end',
@@ -295,15 +296,15 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   welcome: {
     color: colors.textMuted,
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: typography.semiBold,
     textAlign: 'right',
   },
   userName: {
     color: colors.text,
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontFamily: typography.black,
     textAlign: 'right',
-    marginTop: 8,
+    marginTop: 4,
   },
   headerActions: {
     flexDirection: 'row',
@@ -364,40 +365,17 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   statBoxLabel: {
     color: colors.textMuted,
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: typography.semiBold,
   },
   statBoxValue: {
     color: colors.text,
     fontSize: 14,
-    fontWeight: 'bold',
+    fontFamily: typography.bold,
     marginTop: 2,
   },
   content: {
     flex: 1,
     paddingHorizontal: spacing.lg,
-  },
-  searchWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    paddingHorizontal: spacing.md,
-    height: 48,
-    marginBottom: spacing.lg,
-  },
-  searchInput: {
-    flex: 1,
-    height: '100%',
-    color: colors.text,
-    fontSize: 14,
-    fontFamily: 'System',
-  },
-  searchIconContainer: {
-    marginLeft: spacing.sm,
-  },
-  clearSearchBtn: {
-    padding: 6,
-    marginRight: -6,
   },
   sectionHeader: {
     flexDirection: 'row-reverse',
@@ -408,18 +386,14 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   sectionTitle: {
     color: colors.text,
     fontSize: 18,
-    fontWeight: 'bold',
+    fontFamily: typography.bold,
     textAlign: 'right',
-  },
-  searchResultCount: {
-    color: colors.textMuted,
-    fontSize: 13,
   },
   list: {
     paddingBottom: spacing.xl,
   },
   studentCard: {
-    backgroundColor: theme === 'dark' ? 'rgba(22, 32, 50, 0.7)' : '#ffffff',
+    backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: spacing.lg - 4,
     marginBottom: spacing.md,
@@ -445,8 +419,8 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   },
   studentName: {
     color: colors.text,
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 18,
+    fontFamily: typography.bold,
   },
   levelBadge: {
     flexDirection: 'row-reverse',
@@ -459,7 +433,7 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   },
   studentLevel: {
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: typography.bold,
   },
   swimmingBadge: {
     flexDirection: 'row-reverse',
@@ -467,12 +441,12 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: 3,
     borderRadius: radius.sm,
-    backgroundColor: 'rgba(14, 165, 233, 0.1)',
+    backgroundColor: theme === 'dark' ? 'rgba(14, 165, 233, 0.15)' : 'rgba(14, 165, 233, 0.1)',
   },
   swimmingBadgeText: {
     fontSize: 10,
-    fontWeight: '700',
-    color: '#0ea5e9',
+    fontFamily: typography.bold,
+    color: theme === 'dark' ? '#38bdf8' : '#0ea5e9',
   },
   avatar: {
     width: 48,
@@ -489,7 +463,7 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   avatarText: {
     color: '#ffffff',
     fontSize: 20,
-    fontWeight: 'bold',
+    fontFamily: typography.bold,
   },
   cardFooter: {
     flexDirection: 'row-reverse',
@@ -517,13 +491,13 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   statLabel: {
     color: colors.textMuted,
     fontSize: 10,
-    fontWeight: '600',
+    fontFamily: typography.semiBold,
     textAlign: 'right',
   },
   statValue: {
     color: colors.text,
     fontSize: 13,
-    fontWeight: 'bold',
+    fontFamily: typography.bold,
     textAlign: 'right',
     marginTop: 2,
   },

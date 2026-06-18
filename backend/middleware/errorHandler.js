@@ -5,24 +5,42 @@ const errorHandler = (err, req, res, next) => {
   let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
   let message = err.message;
 
-  // خطأ Mongoose — معرّف غير صالح
-  if (err.name === 'CastError' && err.kind === 'ObjectId') {
-    statusCode = 404;
-    message = 'المورد المطلوب غير موجود';
+  // --- أخطاء Sequelize (PostgreSQL) ---
+
+  // أخطاء التحقق من البيانات (Sequelize Validation Error)
+  if (err.name === 'SequelizeValidationError') {
+    statusCode = 400;
+    message = err.errors.map((e) => e.message).join(', ');
   }
 
-  // خطأ تكرار المفتاح الفريد
-  if (err.code === 11000) {
+  // أخطاء تكرار المفاتيح الفريدة (Sequelize Unique Constraint Error)
+  if (err.name === 'SequelizeUniqueConstraintError') {
     statusCode = 400;
-    message = 'هذه البيانات مسجلة مسبقاً';
+    const fields = err.errors.map(e => e.path);
+    if (fields.includes('username')) {
+      message = 'اسم المستخدم مسجل مسبقاً، يرجى اختيار اسم آخر';
+    } else {
+      message = 'هذه البيانات مسجلة مسبقاً';
+    }
   }
 
-  // أخطاء التحقق من Mongoose
-  if (err.name === 'ValidationError') {
-    statusCode = 400;
-    message = Object.values(err.errors)
-      .map((e) => e.message)
-      .join(', ');
+  // أخطاء قاعدة البيانات العامة
+  if (err.name === 'SequelizeDatabaseError') {
+    console.error('🔥 Sequelize Database Error:', err.message);
+    if (process.env.NODE_ENV === 'production') {
+      message = 'حدث خطأ تقني في قاعدة البيانات';
+    }
+  }
+
+  // --- أخطاء التحقق من الهوية (JWT) ---
+  if (err.name === 'JsonWebTokenError') {
+    statusCode = 401;
+    message = 'رمز الوصول (Token) غير صالح';
+  }
+
+  if (err.name === 'TokenExpiredError') {
+    statusCode = 401;
+    message = 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مجدداً';
   }
 
   res.status(statusCode).json({

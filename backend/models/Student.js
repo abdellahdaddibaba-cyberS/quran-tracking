@@ -30,12 +30,16 @@ const Student = sequelize.define('Student', {
       notEmpty: { msg: 'بداية السورة مطلوبة' }
     }
   },
+  currentSurah: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
   dailyTarget: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.FLOAT,
     allowNull: false,
     defaultValue: 1,
     validate: {
-      min: 1
+      min: 0.1
     }
   },
   halaqaId: {

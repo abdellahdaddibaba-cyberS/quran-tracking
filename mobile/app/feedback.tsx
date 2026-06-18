@@ -32,8 +32,8 @@ const getFeedbackIcon = (id: string, color: string) => {
 };
 
 export default function FeedbackScreen() {
-  const { colors, theme } = useAppTheme();
-  const styles = getStyles(colors, theme);
+  const { colors, theme, typography } = useAppTheme();
+  const styles = getStyles(colors, theme, typography);
   const router = useRouter();
 
   const [type, setType] = useState('suggestion');
@@ -212,7 +212,7 @@ export default function FeedbackScreen() {
   );
 }
 
-const getStyles = (colors: any, theme: string) =>
+const getStyles = (colors: any, theme: string, typography: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     content: { padding: spacing.lg, paddingBottom: spacing.xl },
@@ -233,7 +233,7 @@ const getStyles = (colors: any, theme: string) =>
     cardTitle: {
       color: colors.text,
       fontSize: 16,
-      fontWeight: '700',
+      fontFamily: typography.bold,
       textAlign: 'right',
     },
     typesGrid: {
@@ -256,7 +256,7 @@ const getStyles = (colors: any, theme: string) =>
     },
     typeBtnText: {
       fontSize: 14,
-      fontWeight: '600',
+      fontFamily: typography.semiBold,
     },
     divider: {
       height: 1,
@@ -266,7 +266,7 @@ const getStyles = (colors: any, theme: string) =>
     label: {
       color: colors.textSecondary,
       fontSize: 14,
-      fontWeight: '600',
+      fontFamily: typography.semiBold,
       textAlign: 'right',
       marginBottom: spacing.sm,
     },
@@ -278,6 +278,7 @@ const getStyles = (colors: any, theme: string) =>
       padding: spacing.md,
       color: colors.text,
       fontSize: 15,
+      fontFamily: typography.regular,
       height: 150,
       textAlign: 'right',
       textAlignVertical: 'top',
@@ -285,6 +286,7 @@ const getStyles = (colors: any, theme: string) =>
     charCount: {
       color: colors.textMuted,
       fontSize: 11,
+      fontFamily: typography.regular,
       textAlign: 'left',
       marginTop: 4,
       marginBottom: spacing.lg,
@@ -304,7 +306,7 @@ const getStyles = (colors: any, theme: string) =>
       elevation: 3,
     },
     submitBtnDisabled: { opacity: 0.6 },
-    submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    submitBtnText: { color: '#fff', fontSize: 16, fontFamily: typography.bold },
     statusBox: {
       flexDirection: 'row-reverse',
       alignItems: 'center',
@@ -314,9 +316,9 @@ const getStyles = (colors: any, theme: string) =>
       marginBottom: spacing.md,
       borderWidth: 1,
     },
-    statusSuccess: { backgroundColor: colors.successBg, borderColor: 'rgba(52, 211, 153, 0.35)' },
-    statusError: { backgroundColor: colors.dangerBg, borderColor: 'rgba(248, 113, 113, 0.35)' },
-    statusText: { flex: 1, fontSize: 13, fontWeight: '600', textAlign: 'right' },
+    statusSuccess: { backgroundColor: colors.successBg, borderColor: theme === 'dark' ? 'rgba(52, 211, 153, 0.25)' : 'rgba(5, 150, 105, 0.2)' },
+    statusError: { backgroundColor: colors.dangerBg, borderColor: theme === 'dark' ? 'rgba(248, 113, 113, 0.25)' : 'rgba(220, 38, 38, 0.2)' },
+    statusText: { flex: 1, fontSize: 13, fontFamily: typography.semiBold, textAlign: 'right' },
     infoCard: {
       flexDirection: 'row-reverse',
       alignItems: 'center',
@@ -332,6 +334,7 @@ const getStyles = (colors: any, theme: string) =>
       flex: 1,
       color: colors.textMuted,
       fontSize: 12,
+      fontFamily: typography.regular,
       textAlign: 'right',
       lineHeight: 18,
     },

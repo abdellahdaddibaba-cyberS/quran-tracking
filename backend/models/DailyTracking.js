@@ -25,14 +25,14 @@ const DailyTracking = sequelize.define('DailyTracking', {
     defaultValue: DataTypes.NOW
   },
   pagesRequired: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.FLOAT,
     allowNull: false,
     validate: {
-      min: 1
+      min: 0
     }
   },
   pagesMemorized: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.FLOAT,
     allowNull: false,
     defaultValue: 0,
     validate: {

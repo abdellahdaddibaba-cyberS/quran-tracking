@@ -17,6 +17,9 @@
       "permissions": [
         "POST_NOTIFICATIONS",
         "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
         "VIBRATE"
       ],
       "adaptiveIcon": {
@@ -70,6 +73,9 @@
     "runtimeVersion": {
       "policy": "appVersion"
     },
-    "owner": "abdellahdaddis-organization"
+    "owner": "abdellahdaddis-organization",
+    "updates": {
+      "url": "https://u.expo.dev/0d9685bc-48ed-4b29-80e0-3d1493ef896d"
+    }
   }
 }

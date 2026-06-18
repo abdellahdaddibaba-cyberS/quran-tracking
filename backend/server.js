@@ -2,10 +2,52 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const { connectDB } = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 
+// ─── معالجة الأخطاء العالمية (Global Error Handling) ───────────────
+process.on('uncaughtException', (err) => {
+  console.error('🔥 UNCAUGHT EXCEPTION! Shutting down...', err.name, err.message);
+  process.exit(1);
+});
+
+/**
+ * التحقق من وجود متغيرات البيئة الأساسية لضمان عمل النظام
+ */
+function validateEnv() {
+  const required = ['JWT_SECRET', 'PG_HOST', 'PG_PORT', 'PG_USER', 'PG_PASSWORD', 'PG_DB'];
+  const missing = required.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    console.error(`❌ خطأ في الإعداد: متغيرات البيئة التالية مفقودة: ${missing.join(', ')}`);
+    if (process.env.NODE_ENV === 'production') process.exit(1);
+  }
+}
+
+validateEnv();
+
 const app = express();
+
+// ─── الأمان ومعدل الطلبات (Security & Rate Limiting) ───────────────
+app.use(helmet());
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 دقيقة
+  max: 300, // 300 طلب لكل 15 دقيقة
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'تم تجاوز عدد الطلبات المسموح به، يرجى المحاولة لاحقاً' },
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15, // 15 محاولة دخول لكل 15 دقيقة
+  message: { success: false, message: 'محاولات دخول كثيرة جداً، يرجى المحاولة بعد 15 دقيقة' },
+});
+
+app.use('/api/', apiLimiter);
+app.use('/api/auth/login', loginLimiter);
 
 // ─── Middleware ───────────────────────────────────────────────────
 const corsOrigins = (process.env.CORS_ORIGINS || '')
@@ -97,12 +139,25 @@ function getLocalIpAddress() {
 const networkIp = getLocalIpAddress();
 
 async function startServer() {
-  await connectDB();
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 الخادم يعمل على جميع الشبكات على المنفذ ${PORT}`);
-    console.log(`🔗 محلياً: http://localhost:${PORT}`);
-    console.log(`🔗 للشبكة: http://${networkIp}:${PORT}`);
-  });
+  try {
+    await connectDB();
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 الخادم يعمل على جميع الشبكات على المنفذ ${PORT}`);
+      console.log(`🔗 محلياً: http://localhost:${PORT}`);
+      console.log(`🔗 للشبكة: http://${networkIp}:${PORT}`);
+    });
+
+    // معالجة الـ Rejections غير المعالجة لضمان ثبات السيرفر
+    process.on('unhandledRejection', (err) => {
+      console.error('🔥 UNHANDLED REJECTION! Shutting down gracefully...', err.name, err.message);
+      server.close(() => {
+        process.exit(1);
+      });
+    });
+  } catch (error) {
+    console.error('❌ فشل بدء تشغيل الخادم:', error.message);
+    process.exit(1);
+  }
 }
 
 startServer();

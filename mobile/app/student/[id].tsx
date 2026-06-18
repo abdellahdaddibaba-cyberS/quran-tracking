@@ -9,10 +9,11 @@ import { LoadingView } from '../../components/ui/LoadingView';
 import { spacing, radius, cardShadow } from '../../constants/layout';
 import { useAuth } from '../../context/AuthContext';
 import { cleanStudentName } from '../../utils/name';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
 export default function StudentDetailScreen() {
-  const { colors, theme } = useAppTheme();
-  const styles = getStyles(colors, theme);
+  const { colors, theme, typography } = useAppTheme();
+  const styles = getStyles(colors, theme, typography);
   const { id } = useLocalSearchParams();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -34,7 +35,6 @@ export default function StudentDetailScreen() {
       const groups: Record<string, any[]> = {};
 
       records.forEach((record: any) => {
-        // Parse date in local time to avoid timezone offset issues
         const dateParts = record.date.split('T')[0].split('-');
         const yVal = parseInt(dateParts[0], 10);
         const mVal = parseInt(dateParts[1], 10);
@@ -50,18 +50,16 @@ export default function StudentDetailScreen() {
         let weekEnd: Date;
 
         if (dateStr < '2026-06-20') {
-          // Week 1: Sunday to Thursday (June 14 to June 18)
           weekStart = new Date(2026, 5, 14);
           weekEnd = new Date(2026, 5, 18);
         } else {
-          // Other weeks: Saturday to Thursday (6 days)
-          const day = d.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
+          const day = d.getDay();
           const diffToSat = (day + 1) % 7;
           weekStart = new Date(d);
           weekStart.setDate(d.getDate() - diffToSat);
 
           weekEnd = new Date(weekStart);
-          weekEnd.setDate(weekStart.getDate() + 5); // Saturday + 5 days = Thursday
+          weekEnd.setDate(weekStart.getDate() + 5);
         }
 
         const weekLabel = `من ${weekStart.toLocaleDateString('ar-DZ', { month: 'short', day: 'numeric' })} إلى ${weekEnd.toLocaleDateString('ar-DZ', { month: 'short', day: 'numeric' })}`;
@@ -87,12 +85,12 @@ export default function StudentDetailScreen() {
     return <LoadingView />;
   }
 
-  const renderItem = ({ item }: { item: any }) => {
+  const renderItem = ({ item, index }: { item: any, index: number }) => {
     const isPresent = item.attendance === 'present';
     const isExcused = item.attendance === 'excused';
     const isLess = (item.pagesMemorized || 0) < (item.pagesRequired || 0) && !item.isSurahCompleted;
     return (
-      <View style={styles.trackingCard}>
+      <Animated.View entering={FadeInDown.delay(index * 50).duration(500)} style={styles.trackingCard}>
         <View style={styles.dateRow}>
           <Text style={styles.dateText}>
             {new Date(item.date).toLocaleDateString('ar-DZ', { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -140,7 +138,7 @@ export default function StudentDetailScreen() {
             <Text style={styles.notesText}>{item.notes}</Text>
           </View>
         ) : null}
-      </View>
+      </Animated.View>
     );
   };
 
@@ -153,50 +151,27 @@ export default function StudentDetailScreen() {
       ? Math.round((tracking.filter((r: any) => r.attendance === 'present').length / tracking.length) * 100)
       : 0;
 
-    // Get last 7 records for the chart
     const last7 = [...tracking].slice(0, 7).reverse();
 
     return (
-      <View style={styles.summaryContainer}>
+      <Animated.View entering={FadeInUp.duration(800)} style={styles.summaryContainer}>
         <View style={styles.statsGrid}>
           <View style={[styles.statBox, { borderTopColor: colors.danger, borderTopWidth: 3 }]}>
             <UserX size={20} color={colors.danger} style={{ marginBottom: 8 }} />
-            <Text style={[styles.statValue, { color: colors.danger }]}>{absences.length}</Text>
-            <Text style={styles.statLabel}>أيام الغياب</Text>
+            <Text style={[styles.statValue, { color: colors.danger, fontFamily: typography.black }]}>{absences.length}</Text>
+            <Text style={[styles.statLabel, { fontFamily: typography.semiBold }]}>أيام الغياب</Text>
           </View>
           <View style={[styles.statBox, { borderTopColor: colors.success, borderTopWidth: 3 }]}>
             <UserCheck size={20} color={colors.success} style={{ marginBottom: 8 }} />
-            <Text style={styles.statValue}>{attendanceRate}%</Text>
-            <Text style={styles.statLabel}>نسبة الحضور</Text>
+            <Text style={[styles.statValue, { color: colors.success, fontFamily: typography.black }]}>{attendanceRate}%</Text>
+            <Text style={[styles.statLabel, { fontFamily: typography.semiBold }]}>نسبة الحضور</Text>
           </View>
           <View style={[styles.statBox, { borderTopColor: colors.primary, borderTopWidth: 3 }]}>
             <BookOpen size={20} color={colors.primary} style={{ marginBottom: 8 }} />
-            <Text style={[styles.statValue, { color: colors.primary }]}>{avgPages}</Text>
-            <Text style={styles.statLabel}>معدل الحفظ</Text>
+            <Text style={[styles.statValue, { color: colors.primary, fontFamily: typography.black }]}>{avgPages}</Text>
+            <Text style={[styles.statLabel, { fontFamily: typography.semiBold }]}>معدل الحفظ</Text>
           </View>
         </View>
-
-        {absences.length > 0 && (
-          <View style={styles.absenceSection}>
-            <View style={styles.absenceHeader}>
-              <AlertCircle size={18} color={colors.danger} />
-              <Text style={styles.absenceTitle}>تواريخ الغياب المسجلة:</Text>
-            </View>
-            <View style={styles.absenceDaysList}>
-              {absences.slice(0, 5).map((r: any, i: number) => (
-                <View key={i} style={styles.absenceDayItem}>
-                  <Text style={styles.absenceDayText}>
-                    {new Date(r.date).toLocaleDateString('ar-DZ', { day: 'numeric', month: 'long', weekday: 'short' })}
-                  </Text>
-                  <XCircle size={12} color={colors.danger} />
-                </View>
-              ))}
-              {absences.length > 5 && (
-                <Text style={styles.moreAbsences}>... وأيام أخرى</Text>
-              )}
-            </View>
-          </View>
-        )}
 
         <View style={styles.chartSection}>
           <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 16 }}>
@@ -208,7 +183,7 @@ export default function StudentDetailScreen() {
               const required = r.pagesRequired || 5;
               const memorized = r.pagesMemorized || 0;
               const progressRatio = Math.min(memorized / required, 1);
-              const heightRatio = progressRatio * 50; // Max bar height 50
+              const heightRatio = progressRatio * 50; 
               const isSuccess = (memorized >= required || r.isSurahCompleted) && r.attendance === 'present';
               const isAbsent = r.attendance === 'absent';
 
@@ -220,19 +195,24 @@ export default function StudentDetailScreen() {
 
               return (
                 <View key={i} style={styles.chartBarWrap}>
-                  <Text style={[styles.chartBarValue, { color: barColor }]}>
+                  <Text style={[styles.chartBarValue, { color: barColor, fontFamily: typography.bold }]}>
                     {isAbsent ? 'غ' : memorized}
                   </Text>
-                  <View style={[styles.chartBarTrack, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }]}>
-                    <View style={[styles.chartBarProgress, { height: Math.max(heightRatio, 4), backgroundColor: barColor }]} />
+                  <View style={[styles.chartBarTrack, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                    <Animated.View 
+                      entering={FadeInUp.delay(i * 100).duration(800)}
+                      style={[styles.chartBarProgress, { height: Math.max(heightRatio, 6), backgroundColor: barColor }]} 
+                    />
                   </View>
-                  <Text style={styles.chartDay}>{new Date(r.date).toLocaleDateString('ar-DZ', { weekday: 'short' })}</Text>
+                  <Text style={[styles.chartDay, { fontFamily: typography.semiBold }]}>
+                    {new Date(r.date).toLocaleDateString('ar-DZ', { weekday: 'short' })}
+                  </Text>
                 </View>
               );
             })}
           </View>
         </View>
-      </View>
+      </Animated.View>
     );
   };
 
@@ -266,7 +246,6 @@ export default function StudentDetailScreen() {
         sections={data?.sections || []}
         renderItem={renderItem}
         renderSectionHeader={({ section: { title, data } }) => {
-          // Calculate weekly stats
           const totalPages = data.reduce((sum: number, item: any) => sum + (item.pagesMemorized || 0), 0);
           const presentDays = data.filter((item: any) => item.attendance === 'present').length;
 
@@ -309,7 +288,7 @@ export default function StudentDetailScreen() {
   );
 }
 
-const getStyles = (colors: any, theme: string) => StyleSheet.create({
+const getStyles = (colors: any, theme: string, typography: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -330,11 +309,12 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   headerTitle: {
     color: colors.text,
     fontSize: 22,
-    fontWeight: 'bold',
+    fontFamily: typography.bold,
   },
   headerSubtitle: {
     color: colors.textMuted,
     fontSize: 14,
+    fontFamily: typography.semiBold,
     marginTop: 4,
   },
   sectionHeader: {
@@ -350,7 +330,7 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   sectionTitle: {
     color: colors.text,
     fontSize: 14,
-    fontWeight: '700',
+    fontFamily: typography.bold,
     textAlign: 'right',
   },
   weeklyStatsContainer: {
@@ -372,7 +352,7 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   weeklyStatText: {
     color: colors.textSecondary,
     fontSize: 10,
-    fontWeight: '600',
+    fontFamily: typography.semiBold,
   },
   trackingCard: {
     backgroundColor: colors.card,
@@ -393,7 +373,7 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   dateText: {
     color: colors.textMuted,
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: typography.semiBold,
   },
   statsRow: {
     flexDirection: 'row-reverse',
@@ -407,16 +387,17 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   pagesMemorized: {
     color: colors.success,
     fontSize: 32,
-    fontWeight: '900',
+    fontFamily: typography.black,
   },
   pagesRequired: {
     color: colors.textSecondary,
     fontSize: 32,
-    fontWeight: '900',
+    fontFamily: typography.black,
   },
   statLabel: {
     color: colors.textMuted,
     fontSize: 12,
+    fontFamily: typography.semiBold,
     marginTop: 4,
   },
   divider: {
@@ -448,7 +429,7 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   },
   badgeText: {
     fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: typography.bold,
   },
   textSuccess: { color: colors.success },
   textDanger: { color: colors.danger },
@@ -465,6 +446,7 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
     flex: 1,
     color: colors.textSecondary,
     fontSize: 13,
+    fontFamily: typography.regular,
     textAlign: 'right',
     lineHeight: 18,
   },
@@ -475,6 +457,7 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   emptyText: {
     color: colors.textMuted,
     fontSize: 16,
+    fontFamily: typography.semiBold,
   },
   prizesHeaderBtn: {
     flexDirection: 'row-reverse',
@@ -490,7 +473,7 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   prizesHeaderText: {
     color: colors.success,
     fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: typography.bold,
   },
   swimmingHeaderBtn: {
     flexDirection: 'row-reverse',
@@ -506,7 +489,7 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   swimmingHeaderText: {
     color: '#0ea5e9',
     fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: typography.bold,
   },
   summaryContainer: {
     backgroundColor: colors.card,
@@ -539,23 +522,7 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   statValue: {
     color: colors.text,
     fontSize: 22,
-    fontWeight: '900',
-  },
-
-  statSub: {
-    color: colors.textMuted,
-    fontSize: 10,
-  },
-  miniProgress: {
-    width: '100%',
-    height: 4,
-    backgroundColor: colors.border,
-    borderRadius: 2,
-    marginTop: 8,
-  },
-  miniProgressBar: {
-    height: '100%',
-    borderRadius: 2,
+    fontFamily: typography.black,
   },
   chartSection: {
     marginTop: 8,
@@ -563,7 +530,7 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   chartTitle: {
     color: colors.text,
     fontSize: 15,
-    fontWeight: 'bold',
+    fontFamily: typography.bold,
     textAlign: 'right',
   },
   chartContainer: {
@@ -591,70 +558,11 @@ const getStyles = (colors: any, theme: string) => StyleSheet.create({
   },
   chartBarValue: {
     fontSize: 10,
-    fontWeight: '700',
     marginBottom: 2,
   },
   chartDay: {
     color: colors.textMuted,
     fontSize: 10,
-    marginTop: 4,
-  },
-  absenceAlert: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    backgroundColor: colors.dangerBg,
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 16,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.2)',
-  },
-  absenceAlertText: {
-    color: colors.danger,
-    fontSize: 12,
-    fontWeight: 'bold',
-    flex: 1,
-    textAlign: 'right',
-  },
-  absenceSection: {
-    backgroundColor: 'rgba(239, 68, 68, 0.05)',
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: colors.dangerBg,
-  },
-  absenceHeader: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  absenceTitle: {
-    color: colors.danger,
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  absenceDaysList: {
-    gap: 8,
-  },
-  absenceDayItem: {
-    flexDirection: 'row-reverse',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.05)',
-    padding: 8,
-    borderRadius: 8,
-  },
-  absenceDayText: {
-    color: colors.textSecondary,
-    fontSize: 13,
-  },
-  moreAbsences: {
-    color: colors.textMuted,
-    fontSize: 11,
-    textAlign: 'center',
     marginTop: 4,
   },
 });

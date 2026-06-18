@@ -53,51 +53,8 @@ export default function PrizesScreen() {
     return <LoadingView />;
   }
 
-  const generateAutomaticPrizes = (tracking: any[]) => {
-    const automaticPrizes: any[] = [];
-    let currentStreak = 0;
-    const sorted = [...(tracking || [])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    for (let i = 0; i < sorted.length; i++) {
-      const record = sorted[i];
-      if (record.rewarded) {
-        currentStreak = 0;
-        continue;
-      }
-      const isSuccess =
-        (record.pagesMemorized >= record.pagesRequired || record.isSurahCompleted) && record.pagesRequired > 0;
-      if (record.attendance === 'present' && isSuccess) {
-        currentStreak += 1;
-        if (currentStreak > 0 && currentStreak % 3 === 0) {
-          automaticPrizes.push({
-            id: `auto-streak-${record._id}`,
-            title: `بطل المواظبة: ${currentStreak} أيام متتالية`,
-            description: `حافظ الطالب على إتمام ورده لـ ${currentStreak} أيام متصلة.`,
-            date: record.date,
-            icon: 'medal',
-          });
-        }
-      } else {
-        currentStreak = 0;
-      }
-    }
-
-    sorted.forEach((record) => {
-      if (record.isSurahCompleted) {
-        automaticPrizes.push({
-          id: `auto-surah-${record._id}`,
-          title: 'إتمام سورة جديدة',
-          description: 'أتم الطالب حفظ سورة كاملة بنجاح.',
-          date: record.date,
-          icon: 'trophy',
-        });
-      }
-    });
-
-    return automaticPrizes;
-  };
-
-  const allPrizes = [...(data?.prizes || []), ...generateAutomaticPrizes(data?.tracking || [])].sort(
+  // Only show official prizes granted by admins/teachers from the database
+  const allPrizes = [...(data?.prizes || [])].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 

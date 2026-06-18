@@ -17,10 +17,11 @@ import { authAPI } from '../services/api';
 import { Lock, User as UserIcon, Eye, EyeOff } from 'lucide-react-native';
 import { PrimaryButton } from '../components/ui/PrimaryButton';
 import { spacing, radius, cardShadow } from '../constants/layout';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
 export default function LoginScreen() {
-  const { colors, theme } = useAppTheme();
-  const styles = getStyles(colors, theme);
+  const { colors, theme, typography } = useAppTheme();
+  const styles = getStyles(colors, theme, typography);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -85,15 +86,15 @@ export default function LoginScreen() {
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
+        <Animated.View entering={FadeInUp.delay(200).duration(800)} style={styles.header}>
           <View style={styles.logoWrap}>
             <Image source={require('../assets/images/Logo.png')} style={styles.logo} />
           </View>
           <Text style={styles.title}>مدرسة النور القرآنية</Text>
           <Text style={styles.subtitle}>بوابة أولياء الأمور لمتابعة التحصيل اليومي</Text>
-        </View>
+        </Animated.View>
 
-        <View style={styles.formCard}>
+        <Animated.View entering={FadeInDown.delay(400).duration(800)} style={styles.formCard}>
           {errorMessage ? (
             <View style={[styles.errorBox, { borderColor: colors.danger, backgroundColor: colors.dangerBg }]}>
               <Text style={[styles.errorText, { color: colors.danger }]}>{errorMessage}</Text>
@@ -169,15 +170,15 @@ export default function LoginScreen() {
             onPress={handleLogin}
             loading={loading}
           />
-        </View>
+        </Animated.View>
 
-        <Text style={[styles.footer, { color: colors.textMuted }]}>جميع الحقوق محفوظة © 2026</Text>
+        <Animated.Text entering={FadeInDown.delay(600)} style={[styles.footer, { color: colors.textMuted }]}>جميع الحقوق محفوظة © 2026</Animated.Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const getStyles = (colors: typeof import('../context/ThemeContext').Colors.light, theme: string) =>
+const getStyles = (colors: any, theme: string, typography: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -193,7 +194,7 @@ const getStyles = (colors: typeof import('../context/ThemeContext').Colors.light
       marginBottom: spacing.xl,
     },
     logoWrap: {
-      backgroundColor: '#ffffff',
+      backgroundColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#ffffff',
       width: 112,
       height: 112,
       borderRadius: radius.xl,
@@ -208,15 +209,17 @@ const getStyles = (colors: typeof import('../context/ThemeContext').Colors.light
       width: 96,
       height: 96,
       resizeMode: 'contain',
+      opacity: theme === 'dark' ? 0.9 : 1,
     },
     title: {
-      fontSize: 22,
-      fontWeight: '800',
+      fontSize: 24,
+      fontFamily: typography.black,
       color: colors.text,
       textAlign: 'center',
     },
     subtitle: {
-      fontSize: 15,
+      fontSize: 16,
+      fontFamily: typography.semiBold,
       color: colors.textMuted,
       marginTop: spacing.xs,
       textAlign: 'center',
@@ -240,6 +243,7 @@ const getStyles = (colors: typeof import('../context/ThemeContext').Colors.light
     errorText: {
       textAlign: 'center',
       fontSize: 14,
+      fontFamily: typography.bold,
       lineHeight: 22,
     },
     inputContainer: {
@@ -256,6 +260,7 @@ const getStyles = (colors: typeof import('../context/ThemeContext').Colors.light
       flex: 1,
       height: 52,
       fontSize: 16,
+      fontFamily: typography.semiBold,
     },
     eyeBtn: {
       padding: spacing.xs,
@@ -264,6 +269,7 @@ const getStyles = (colors: typeof import('../context/ThemeContext').Colors.light
     footer: {
       textAlign: 'center',
       fontSize: 12,
+      fontFamily: typography.regular,
       marginTop: spacing.xl,
     },
   });

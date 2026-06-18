@@ -14,8 +14,8 @@ import { spacing, radius, cardShadow } from '../constants/layout';
 import * as Haptics from 'expo-haptics';
 
 export default function SettingsScreen() {
-  const { colors, theme } = useAppTheme();
-  const styles = getStyles(colors, theme);
+  const { colors, theme, typography } = useAppTheme();
+  const styles = getStyles(colors, theme, typography);
   const { user, updateUser, logout, login } = useAuth();
   const router = useRouter();
 
@@ -258,7 +258,7 @@ export default function SettingsScreen() {
   );
 }
 
-const getStyles = (colors: ReturnType<typeof import('../context/ThemeContext').useAppTheme>['colors'], theme: string) =>
+const getStyles = (colors: ReturnType<typeof import('../context/ThemeContext').useAppTheme>['colors'], theme: string, typography: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     content: { padding: spacing.lg, paddingBottom: spacing.xl },
@@ -273,7 +273,7 @@ const getStyles = (colors: ReturnType<typeof import('../context/ThemeContext').u
     cardTitle: {
       color: colors.text,
       fontSize: 17,
-      fontWeight: '700',
+      fontFamily: typography.bold,
       textAlign: 'right',
       marginBottom: spacing.lg,
     },
@@ -286,9 +286,9 @@ const getStyles = (colors: ReturnType<typeof import('../context/ThemeContext').u
       marginBottom: spacing.md,
       borderWidth: 1,
     },
-    statusSuccess: { backgroundColor: colors.successBg, borderColor: 'rgba(52, 211, 153, 0.35)' },
-    statusError: { backgroundColor: colors.dangerBg, borderColor: 'rgba(248, 113, 113, 0.35)' },
-    statusText: { flex: 1, fontSize: 14, fontWeight: '600', textAlign: 'right' },
+    statusSuccess: { backgroundColor: colors.successBg, borderColor: theme === 'dark' ? 'rgba(52, 211, 153, 0.25)' : 'rgba(5, 150, 105, 0.2)' },
+    statusError: { backgroundColor: colors.dangerBg, borderColor: theme === 'dark' ? 'rgba(248, 113, 113, 0.25)' : 'rgba(220, 38, 38, 0.2)' },
+    statusText: { flex: 1, fontSize: 14, fontFamily: typography.semiBold, textAlign: 'right' },
     formGroup: { marginBottom: spacing.md },
     label: { color: colors.textMuted, fontSize: 13, marginBottom: spacing.sm, textAlign: 'right', fontWeight: '600' },
     inputContainer: {

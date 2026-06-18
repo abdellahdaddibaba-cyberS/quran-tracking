@@ -8,11 +8,12 @@ export default function LowPageReport() {
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(2);
   const [search, setSearch] = useState('');
+  const [onlyNoSurah, setOnlyNoSurah] = useState(false);
 
-  const fetchReport = async (daysVal) => {
+  const fetchReport = async (daysVal, noSurah) => {
     setLoading(true);
     try {
-      const res = await reportsAPI.getLowPages({ days: daysVal });
+      const res = await reportsAPI.getLowPages({ days: daysVal, noSurah: noSurah });
       setData(res.data.data);
     } catch (err) {
       toast.error('فشل تحميل التقرير');
@@ -22,8 +23,8 @@ export default function LowPageReport() {
   };
 
   useEffect(() => {
-    fetchReport(days);
-  }, [days]);
+    fetchReport(days, onlyNoSurah);
+  }, [days, onlyNoSurah]);
 
   const filtered = data.filter(s => 
     s.name.toLowerCase().includes(search.toLowerCase()) || 
@@ -38,7 +39,27 @@ export default function LowPageReport() {
           تقرير الحفظ الضعيف
         </div>
         <div className="header-actions">
-          <div style={{ display: 'flex', gap: '1rem' }}>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <label style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.5rem', 
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+              color: 'var(--text-secondary)',
+              background: 'var(--bg-card)',
+              padding: '0.5rem 1rem',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-color)'
+            }}>
+              <input 
+                type="checkbox" 
+                checked={onlyNoSurah} 
+                onChange={e => setOnlyNoSurah(e.target.checked)}
+                style={{ cursor: 'pointer' }}
+              />
+              بدون سورة فقط
+            </label>
             <button 
               className={`btn ${days === 2 ? 'btn-primary' : 'btn-outline'}`}
               onClick={() => setDays(2)}

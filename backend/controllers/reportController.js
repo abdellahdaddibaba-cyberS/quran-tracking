@@ -2,7 +2,20 @@ const { Op, fn, col, literal } = require('sequelize');
 const DailyTracking = require('../models/DailyTracking');
 const Student = require('../models/Student');
 const Halaqa = require('../models/Halaqa');
+const Prize = require('../models/Prize');
+const User = require('../models/User');
 const { sequelize } = require('../config/db');
+const { sendPushNotification } = require('../utils/notification');
+const { syncPushTokensFromSupabase } = require('../utils/syncPushTokens');
+const { runSync } = require('../sync_to_supabase');
+
+/**
+ * دالة مساعدة لتوحيد أسماء الأعمدة المسترجعة من PostgreSQL (Raw Queries)
+ */
+function getColumn(row, camelName) {
+  if (row[camelName] !== undefined) return row[camelName];
+  return row[camelName.toLowerCase()];
+}
 
 /**
  * جلب الطلاب الذين لديهم حفظ قليل (أقل من صفحتين) لمدة يومين أو ثلاثة متتالية
@@ -12,8 +25,6 @@ const getLowPageStudents = async (req, res) => {
     const days = parseInt(req.query.days) || 2;
     const threshold = parseInt(req.query.threshold) || 2;
 
-    // سنقوم بجلب آخر سجلات لكل طالب
-    // نستخدم استعلام فرعي للحصول على آخر N سجلات لكل طالب
     const query = `
       WITH RankedTracking AS (
         SELECT 
@@ -34,29 +45,28 @@ const getLowPageStudents = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
-    // معالجة النتائج في JS للتحقق من الشرط المتتالي
     const studentGroups = {};
     results.forEach(row => {
-      if (!studentGroups[row.studentId]) {
-        studentGroups[row.studentId] = {
-          id: row.studentId,
-          name: row.studentName,
-          halaqa: row.halaqaName,
+      const studentId = getColumn(row, 'studentId');
+      const studentName = getColumn(row, 'studentName');
+      const halaqaName = getColumn(row, 'halaqaName');
+      const pagesMemorized = Number(getColumn(row, 'pagesMemorized') || 0);
+
+      if (!studentGroups[studentId]) {
+        studentGroups[studentId] = {
+          id: studentId,
+          name: studentName,
+          halaqa: halaqaName,
           records: []
         };
       }
-      studentGroups[row.studentId].records.push(row);
+      studentGroups[studentId].records.push({ ...row, pagesMemorized });
     });
 
     const lowPageStudents = Object.values(studentGroups)
       .filter(group => {
-        // يجب أن يكون لديه عدد سجلات يساوي عدد الأيام المطلوبة
         if (group.records.length < days) return false;
-        
-        // يجب أن تكون جميع السجلات أقل من العتبة
-        // ملاحظة: قد تعيد Postgres أسماء الأعمدة بحروف صغيرة إذا لم يتم اقتباسها، 
-        // لكن Sequelize عادة ما يقتبسها ويحافظ على الحالة.
-        return group.records.every(r => (r.pagesMemorized || r.pagesmemorized) < threshold);
+        return group.records.every(r => r.pagesMemorized < threshold);
       })
       .map(group => ({
         id: group.id,
@@ -64,7 +74,7 @@ const getLowPageStudents = async (req, res) => {
         halaqa: group.halaqa,
         lastRecords: group.records.map(r => ({
           date: r.date,
-          pages: r.pagesMemorized || r.pagesmemorized || 0
+          pages: r.pagesMemorized || 0
         }))
       }));
 
@@ -100,10 +110,9 @@ const getIndividualSessions = async (req, res) => {
       order: [['date', 'DESC']]
     });
 
-    // تجميع حسب الطالب لتجنب التكرار إذا كان لديه أكثر من جلسة
     const studentMap = {};
     records.forEach(rec => {
-      const student = rec.student || rec.Student; // Sequelize include case
+      const student = rec.student || rec.Student;
       if (!student) return;
       
       const studentId = student._id;
@@ -141,13 +150,11 @@ const toggleSession = async (req, res) => {
       return res.status(400).json({ success: false, message: 'معرف الطالب والتاريخ مطلوبان' });
     }
 
-    // نحتاج لمعرفة القسط اليومي للطالب إذا كنا سننشئ سجلاً جديداً
     const student = await Student.findByPk(studentId);
     if (!student) {
       return res.status(404).json({ success: false, message: 'الطالب غير موجود' });
     }
 
-    // استخدام findOrCreate ثم التحديث لضمان عدم الكتابة فوق البيانات الأخرى (مثل الحفظ)
     const [record, created] = await DailyTracking.findOrCreate({
       where: { studentId, date },
       defaults: {
@@ -218,7 +225,6 @@ const deleteSession = async (req, res) => {
       return res.status(404).json({ success: false, message: 'السجل غير موجود' });
     }
 
-    // نصفر بيانات الجلسة فقط ونبقي على بيانات الحفظ الأخرى إن وجدت
     record.individualSession = false;
     record.notes = '';
     await record.save();
@@ -237,11 +243,10 @@ const deleteSession = async (req, res) => {
  */
 const getAwardStudents = async (req, res) => {
   try {
-    const days = 3; // افتراضياً 3 أيام
-
     const query = `
       SELECT 
-        dt."_id", dt."studentId", dt."date", dt."pagesRequired", dt."pagesMemorized", dt."isSurahCompleted", dt."rewarded", dt."attendance",
+        dt."_id", dt."studentId", dt."date", dt."pagesRequired", dt."pagesMemorized", 
+        dt."isSurahCompleted", dt."rewarded", dt."attendance",
         s."name" as "studentName", h."name" as "halaqaName"
       FROM "daily_trackings" dt
       JOIN "students" s ON dt."studentId" = s."_id"
@@ -254,13 +259,13 @@ const getAwardStudents = async (req, res) => {
 
     const studentGroups = {};
     rawResults.forEach(row => {
-      const sid = row.studentId || row.studentid || row._id;
+      const sid = getColumn(row, 'studentId') || row._id;
       if (!sid) return;
       if (!studentGroups[sid]) {
         studentGroups[sid] = {
           id: sid,
-          name: row.studentName || row.studentname || "طالب",
-          halaqa: row.halaqaName || row.halaqaname || "حلقة",
+          name: getColumn(row, 'studentName') || "طالب",
+          halaqa: getColumn(row, 'halaqaName') || "حلقة",
           records: []
         };
       }
@@ -271,33 +276,23 @@ const getAwardStudents = async (req, res) => {
     const potentialWinners = [];
 
     Object.values(studentGroups).forEach(group => {
-      const records = group.records; // Ordered by date DESC
+      const records = group.records;
       let currentStreak = [];
       
-      // We look for the MOST RECENT streak. 
-      // Since records are DESC, we check from the most recent record backwards.
       for (let i = 0; i < records.length; i++) {
         const r = records[i];
-        const memorized = Number(r.pagesMemorized || r.pagesmemorized || 0);
-        const required = Number(r.pagesRequired || r.pagesrequired || 0);
-        const surahDone = r.isSurahCompleted || r.issurahcompleted || false;
-        const attendance = r.attendance || r.attendance || 'present';
+        const memorized = Number(getColumn(r, 'pagesMemorized') || 0);
+        const required = Number(getColumn(r, 'pagesRequired') || 0);
+        const surahDone = getColumn(r, 'isSurahCompleted') || false;
+        const attendance = getColumn(r, 'attendance') || 'present';
         
         const isSuccess = (attendance === 'present') && (memorized >= required || surahDone === true || surahDone === 1) && required > 0;
 
         if (isSuccess) {
           currentStreak.push(r);
-          if (currentStreak.length >= 3) break; // Found a 3-day streak
+          if (currentStreak.length >= 3) break;
         } else {
-          // If this is the very first record (most recent) and it's a failure, streak is 0.
-          // If we had some successes but then found a failure further back, the streak is broken.
-          // Since we want 3 CONSECUTIVE days from the most recent, any failure/absence breaks it.
-          if (currentStreak.length > 0) {
-            // We had a streak starting from most recent, but it's broken now.
-            break; 
-          }
-          // Otherwise, if we haven't found any successes yet, just keep looking for the "start" of a streak
-          // (Actually, for awards, it usually means the LAST 3 days must be success)
+          if (currentStreak.length > 0) break;
         }
       }
 
@@ -309,9 +304,9 @@ const getAwardStudents = async (req, res) => {
         lastRecords: currentStreak.map(r => ({
           id: r._id || r.id,
           date: r.date,
-          pages: Number(r.pagesMemorized || r.pagesmemorized || 0),
-          required: Number(r.pagesRequired || r.pagesrequired || 0),
-          isSurahCompleted: !!(r.isSurahCompleted || r.issurahcompleted)
+          pages: Number(getColumn(r, 'pagesMemorized') || 0),
+          required: Number(getColumn(r, 'pagesRequired') || 0),
+          isSurahCompleted: !!getColumn(r, 'isSurahCompleted')
         }))
       };
 
@@ -345,13 +340,6 @@ const givePrize = async (req, res) => {
       return res.status(400).json({ success: false, message: 'معرف الطالب مطلوب' });
     }
 
-    const Prize = require('../models/Prize');
-    const Student = require('../models/Student');
-    const User = require('../models/User');
-    const { sendPushNotification } = require('../utils/notification');
-    const { syncPushTokensFromSupabase } = require('../utils/syncPushTokens');
-
-    // Determine icon and description based on prizeTitle
     let icon = 'star';
     let description = '';
     const titleText = prizeTitle || 'جائزة الانضباط';
@@ -378,7 +366,6 @@ const givePrize = async (req, res) => {
       icon
     });
 
-    // Notify parent
     try {
       await syncPushTokensFromSupabase();
       const student = await Student.findByPk(studentId, {
@@ -403,15 +390,9 @@ const givePrize = async (req, res) => {
       console.error('Failed to send prize notification:', notifErr);
     }
 
-    // Trigger database sync to Supabase in background
-    try {
-      const { runSync } = require('../sync_to_supabase');
-      runSync().catch(err => {
-        console.error('⚠️ [Sync on Prize Give] Failed to sync to Supabase:', err.message);
-      });
-    } catch (syncErr) {
-      console.error('⚠️ [Sync on Prize Give] Failed to require sync_to_supabase:', syncErr.message);
-    }
+    runSync().catch(err => {
+      console.error('⚠️ [Sync on Prize Give] Failed to sync to Supabase:', err.message);
+    });
 
     res.json({ success: true, message: 'تم تسليم الجائزة بنجاح' });
   } catch (error) {
@@ -424,7 +405,6 @@ const givePrize = async (req, res) => {
  */
 const getRecentPrizes = async (req, res) => {
   try {
-    const Prize = require('../models/Prize');
     const prizes = await Prize.findAll({
       include: [{
         model: Student,
@@ -462,20 +442,16 @@ const getImprovementAwards = async (req, res) => {
     const toDateStr = (dObj) =>
       `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
 
-    // ─── نحسب الخميس الأقرب للتاريخ المُدخل (أو نفسه إن كان خميساً) ───
-    const dayOfWeek = inputObj.getDay(); // 0=أحد، 4=خميس، 5=جمعة، 6=سبت
+    const dayOfWeek = inputObj.getDay();
     const diffToThursday = (4 - dayOfWeek + 7) % 7;
     const thursday = new Date(inputObj);
     thursday.setDate(inputObj.getDate() + diffToThursday);
 
-    // ─── الأسبوع الحالي: السبت → الخميس (6 أيام) ───
-    // السبت = الخميس ناقص 5 أيام
     const currentSat = new Date(thursday);
     currentSat.setDate(thursday.getDate() - 5);
     const currentStart = toDateStr(currentSat);
     const currentEnd   = toDateStr(thursday);
 
-    // ─── الأسبوع الماضي: السبت → الخميس السابق ───
     const prevThursday = new Date(thursday);
     prevThursday.setDate(thursday.getDate() - 7);
     const prevSat = new Date(currentSat);
@@ -483,7 +459,6 @@ const getImprovementAwards = async (req, res) => {
     const prevStart = toDateStr(prevSat);
     const prevEnd   = toDateStr(prevThursday);
 
-    // ─── جلب الطلاب الذين قسطهم ≤ 2 صفحة ───
     const students = await Student.findAll({
       where: { isActive: true, dailyTarget: { [Op.lte]: 2 } },
       include: [{ model: Halaqa, as: 'halaqa', attributes: ['name'] }]
@@ -491,7 +466,6 @@ const getImprovementAwards = async (req, res) => {
 
     const studentIds = students.map(s => s._id);
 
-    // ─── جلب سجلات الأسبوعين ───
     const trackings = await DailyTracking.findAll({
       where: {
         studentId: { [Op.in]: studentIds },
@@ -499,7 +473,6 @@ const getImprovementAwards = async (req, res) => {
       }
     });
 
-    // ─── تجميع الصفحات لكل طالب وكل أسبوع ───
     const trackingMap = {};
     trackings.forEach(t => {
       const sid = t.studentId;
@@ -528,10 +501,6 @@ const getImprovementAwards = async (req, res) => {
         }
       });
 
-      // ─── شروط جائزة التحسن ───
-      // 1. قسط ≤ 2 صفحة (مضمون من الاستعلام)
-      // 2. الأسبوع الماضي ≥ 9 صفحات
-      // 3. هذا الأسبوع ≥ 14 صفحة (تحسن بـ5 صفحات على الأقل)
       if (prevTotal >= 9 && currentTotal >= 14) {
         winners.push({
           _id:         student._id,
@@ -546,7 +515,6 @@ const getImprovementAwards = async (req, res) => {
       }
     });
 
-    // ترتيب: الأكثر تحسناً أولاً
     winners.sort((a, b) => b.improvement - a.improvement);
 
     res.json({
@@ -564,8 +532,6 @@ const getImprovementAwards = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
-
 
 module.exports = {
   getLowPageStudents,

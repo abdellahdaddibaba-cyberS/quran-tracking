@@ -25,7 +25,7 @@ const getLowPageStudents = async (req, res) => {
         {
           model: Student,
           as: 'student',
-          attributes: ['_id', 'name', 'level'],
+          attributes: ['_id', 'name', 'level', 'currentSurah'],
           where: { isActive: true },
           include: [{ model: Halaqa, as: 'halaqa', attributes: ['name', 'supervisor'] }],
         },
@@ -85,11 +85,19 @@ const getLowPageStudents = async (req, res) => {
       }
 
       if (maxStreak >= minDays) {
+        // فلترة الطلاب حسب السورة إذا تم إرسال المعامل "noSurah"
+        const isNoSurah = !student.currentSurah || student.currentSurah.trim() === '';
+        
+        if (req.query.noSurah === 'true' && !isNoSurah) {
+          continue; 
+        }
+
         result.push({
           student: {
             _id: student._id,
             name: student.name,
             level: student.level,
+            currentSurah: student.currentSurah,
             halaqa: student.halaqa,
           },
           maxConsecutiveDays: maxStreak,

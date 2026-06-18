@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
-import { BookOpen, Save, CheckCircle2, AlertCircle, ChevronRight, ChevronLeft, Trash2, TriangleAlert, Star } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { BookOpen, Save, CheckCircle2, AlertCircle, ChevronRight, ChevronLeft, Trash2, TriangleAlert, Star, UserCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { halaqatAPI, studentsAPI, trackingAPI } from '../services/api';
 import { useSearchParams } from 'react-router-dom';
 import ConfirmModal from '../components/ConfirmModal';
+import { SURAHS } from '../utils/surahs';
 
 function getWeekDays(dateInput) {
   // استخدام التوقيت المحلي بدلاً من UTC لتجنب مشاكل فارق التوقيت
@@ -90,6 +91,21 @@ export default function DailyInput() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [deleteDay, setDeleteDay] = useState(null); // { dateStr, label }
+
+  /**
+   * حساب عدد الحضور لكل يوم من خلال المصفوفة الحالية
+   */
+  const getAttendanceCount = useCallback((dateStr) => {
+    let count = 0;
+    Object.values(matrix).forEach(studentDays => {
+      const dayData = studentDays[dateStr];
+      // نعتبر الطالب حاضراً إذا تم اختيار 'present' أو إذا كان هناك حفظ صفحات ولم يتم تحديد الحالة كغائب
+      if (dayData && (dayData.attendance === 'present' || (dayData.pages > 0 && dayData.attendance !== 'absent'))) {
+        count++;
+      }
+    });
+    return count;
+  }, [matrix]);
 
   // جلب الحلقات عند التحميل
   useEffect(() => {
@@ -242,6 +258,52 @@ export default function DailyInput() {
     }
   };
 
+  // ─── معالجة التقدم في السور ────────────────────────────────────
+  const handleAdvanceSurah = useCallback(async (studentId, studentName, currentSurahVal) => {
+    // إيجاد السورة الحالية وحساب التالية
+    const normalizeAr = (str) =>
+      (str || '')
+        .replace(/^سوره?\s+/, '')
+        .replace(/[أإآا]/g, 'ا')
+        .replace(/ة/g, 'ه')
+        .replace(/ى/g, 'ي')
+        .replace(/[\u064B-\u065F\u0670ـ]/g, '')
+        .replace(/^ال/, '')
+        .trim();
+
+    const normSurahs = SURAHS.map(normalizeAr);
+    const currentIdx = normSurahs.indexOf(normalizeAr(currentSurahVal || ''));
+
+    let nextSurah;
+    if (currentIdx === -1) {
+      // إذا لم تكن هناك سورة، نبدأ من الفاتحة كبداية تلقائية
+      nextSurah = SURAHS[0];
+    } else {
+      const nextIdx = currentIdx + 1;
+      if (nextIdx >= SURAHS.length) {
+        toast.success(`🎉 ${studentName} أتمَّ القرآن الكريم كاملاً!`, { duration: 6000 });
+        return;
+      }
+      nextSurah = SURAHS[nextIdx];
+    }
+    
+    try {
+      await studentsAPI.update(studentId, { currentSurah: nextSurah });
+      // تحديث الحالة المحلية للطلاب
+      setStudents(prev =>
+        prev.map(st =>
+          st._id === studentId ? { ...st, currentSurah: nextSurah } : st
+        )
+      );
+      toast.success(
+        `📖 ${studentName} — انتقلت السورة الحالية إلى: سورة ${nextSurah}`,
+        { duration: 4000 }
+      );
+    } catch {
+      toast.error('فشل تحديث السورة الحالية للطالب');
+    }
+  }, []);
+
   // حفظ كل السجلات دفعة واحدة
   const handleSaveAll = async () => {
     setSaving(true);
@@ -255,7 +317,7 @@ export default function DailyInput() {
               studentId: st._id,
               date: day.dateStr,
               pagesRequired: st.dailyTarget,
-              pagesMemorized: cellData.attendance === 'absent' ? 0 : Number(cellData.pages || 0),
+              pagesMemorized: cellData.attendance === 'absent' ? 0 : parseFloat(cellData.pages || 0),
               attendance: cellData.attendance,
               isLate: cellData.isLate,
               isSurahCompleted: cellData.isSurahCompleted || false,
@@ -438,21 +500,39 @@ export default function DailyInput() {
                 <th style={{ width: 40 }}>#</th>
                 <th>اسم الطالب</th>
                 <th style={{ textAlign: 'center', width: 80 }}>القسط</th>
-                {weekDays.map(day => (
-                  <th key={day.dateStr} style={{ textAlign: 'center', minWidth: 90 }}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{day.label}</div>
-                    <div style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
-                      {day.shortDate}
-                      <button
-                        onClick={() => handleDeleteDay(day.dateStr, day.label)}
-                        style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: 0, opacity: 0.8 }}
-                        title="مسح بيانات هذا اليوم"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </th>
-                ))}
+                {weekDays.map(day => {
+                  const attendanceCount = getAttendanceCount(day.dateStr);
+                  return (
+                    <th key={day.dateStr} style={{ textAlign: 'center', minWidth: 90 }}>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{day.label}</div>
+                      <div style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                        {day.shortDate}
+                        <button
+                          onClick={() => handleDeleteDay(day.dateStr, day.label)}
+                          style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: 0, opacity: 0.8 }}
+                          title="مسح بيانات هذا اليوم"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <div style={{ 
+                        marginTop: '4px', 
+                        fontSize: '0.75rem', 
+                        color: 'var(--green-400)',
+                        fontWeight: 800,
+                        background: 'rgba(34, 197, 94, 0.12)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '2px 6px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '2px'
+                      }}>
+                        <UserCheck size={12} />
+                        {attendanceCount}
+                      </div>
+                    </th>
+                  );
+                })}
                 <th style={{ textAlign: 'center', minWidth: 100, background: 'rgba(34,197,94,0.08)', borderRight: '2px solid rgba(34,197,94,0.2)' }}>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>هذا الأسبوع</div>
                   <div>المجموع</div>
@@ -477,7 +557,30 @@ export default function DailyInput() {
                 return (
                 <tr key={st._id}>
                   <td style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
-                  <td style={{ fontWeight: 700, fontSize: '0.9rem' }}>{st.name}</td>
+                  <td style={{ verticalAlign: 'middle' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{st.name}</span>
+                      <button
+                        onClick={() => handleAdvanceSurah(st._id, st.name, st.currentSurah || st.startSurah)}
+                        style={{
+                          background: 'rgba(245,158,11,0.1)',
+                          color: 'var(--gold-400)',
+                          border: '1px solid rgba(245,158,11,0.2)',
+                          borderRadius: '4px',
+                          padding: '2px 6px',
+                          fontSize: '0.7rem',
+                          marginTop: '4px',
+                          cursor: 'pointer',
+                          alignSelf: 'flex-start',
+                          fontWeight: 'normal',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title="انقر للتقدم للسورة التالية"
+                      >
+                        {st.currentSurah || st.startSurah || 'غير محدد'}
+                      </button>
+                    </div>
+                  </td>
                   <td style={{ textAlign: 'center' }}>
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -504,6 +607,7 @@ export default function DailyInput() {
                             type="number"
                             min="0"
                             max="50"
+                            step="0.5"
                             placeholder="-"
                             value={cellData.attendance === 'absent' ? '0' : val}
                             disabled={cellData.attendance === 'absent'}
@@ -517,7 +621,13 @@ export default function DailyInput() {
                             }}
                           />
                           <button
-                            onClick={() => updateCell(st._id, day.dateStr, 'isSurahCompleted', !cellData.isSurahCompleted)}
+                            onClick={() => {
+                              const nextVal = !cellData.isSurahCompleted;
+                              updateCell(st._id, day.dateStr, 'isSurahCompleted', nextVal);
+                              if (nextVal) {
+                                handleAdvanceSurah(st._id, st.name, st.currentSurah || st.startSurah);
+                              }
+                            }}
                             style={{
                               background: 'none',
                               border: 'none',

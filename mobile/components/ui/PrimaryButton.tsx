@@ -20,7 +20,7 @@ export function PrimaryButton({
   variant = 'success',
   style,
 }: PrimaryButtonProps) {
-  const { colors } = useAppTheme();
+  const { colors, typography } = useAppTheme();
   const bg = variant === 'success' ? colors.success : colors.primary;
 
   return (
@@ -38,7 +38,7 @@ export function PrimaryButton({
       {loading ? (
         <ActivityIndicator color="#fff" />
       ) : (
-        <Text style={styles.label}>{label}</Text>
+        <Text style={[styles.label, { fontFamily: typography.bold }]}>{label}</Text>
       )}
     </TouchableOpacity>
   );
@@ -62,6 +62,5 @@ const styles = StyleSheet.create({
   label: {
     color: '#fff',
     fontSize: 17,
-    fontWeight: '700',
   },
 });

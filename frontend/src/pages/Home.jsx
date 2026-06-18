@@ -136,8 +136,8 @@ export default function Home({ user }) {
                     <span style={{ fontWeight: 600 }}>{s.level}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>بداية السورة:</span>
-                    <span style={{ fontWeight: 600 }}>{s.startSurah}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>السورة الحالية:</span>
+                    <span style={{ fontWeight: 600 }}>{s.currentSurah || s.startSurah}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
                     <span style={{ color: 'var(--text-muted)' }}>الهدف اليومي:</span>

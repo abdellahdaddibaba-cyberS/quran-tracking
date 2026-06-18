@@ -15,7 +15,7 @@ type ScreenHeaderProps = {
 
 export function ScreenHeader({ title, subtitle, onBack, right, style }: ScreenHeaderProps) {
   const router = useRouter();
-  const { colors } = useAppTheme();
+  const { colors, typography } = useAppTheme();
 
   return (
     <View style={[styles.wrap, { borderBottomColor: colors.border, backgroundColor: colors.background }, style]}>
@@ -27,11 +27,11 @@ export function ScreenHeader({ title, subtitle, onBack, right, style }: ScreenHe
         <ChevronRight size={22} color={colors.text} />
       </TouchableOpacity>
       <View style={styles.titles}>
-        <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
+        <Text style={[styles.title, { color: colors.text, fontFamily: typography.bold }]} numberOfLines={1}>
           {title}
         </Text>
         {subtitle ? (
-          <Text style={[styles.subtitle, { color: colors.textMuted }]} numberOfLines={1}>
+          <Text style={[styles.subtitle, { color: colors.textMuted, fontFamily: typography.semiBold }]} numberOfLines={1}>
             {subtitle}
           </Text>
         ) : null}
@@ -64,7 +64,6 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: '700',
     textAlign: 'right',
   },
   subtitle: {

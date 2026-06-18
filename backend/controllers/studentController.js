@@ -177,6 +177,9 @@ const createStudent = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const studentData = { ...req.body };
+    if (!studentData.currentSurah && studentData.startSurah) {
+      studentData.currentSurah = studentData.startSurah;
+    }
     let parentCreated = null;
 
     // التحقق مما إذا كان قد تم تمرير اسم ولي الأمر لإنشائه تلقائياً أو استخراجه من اسم الطالب
@@ -261,6 +264,9 @@ const createBulkStudents = async (req, res) => {
 
     for (const studentData of students) {
       const student = { ...studentData };
+      if (!student.currentSurah && student.startSurah) {
+        student.currentSurah = student.startSurah;
+      }
       let parentId = student.parentId;
 
       // إذا لم يكن لدى الطالب parentId، نحاول ربطه أو إنشائه تلقائياً من اسم الأب

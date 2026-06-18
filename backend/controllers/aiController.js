@@ -106,6 +106,7 @@ function buildLlmContext(student, halaqa, lastRecords, stats) {
       name: student.name,
       level: LEVEL_LABELS[student.level] || student.level,
       startSurah: student.startSurah,
+      currentSurah: student.currentSurah || student.startSurah,
       currentDailyTarget: student.dailyTarget,
       notes: student.notes || '',
     },
