@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Users, X, Search, UploadCloud } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, X, Search, UploadCloud, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { studentsAPI, halaqatAPI, usersAPI } from '../services/api';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
+import { studentsAPI, halaqatAPI, usersAPI, trackingAPI } from '../services/api';
 import ConfirmModal from '../components/ConfirmModal';
 import { SURAHS } from '../utils/surahs';
 
@@ -180,7 +182,7 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
               </div>
               <div className="form-group">
                 <label className="form-label">القسط اليومي (صفحات) *</label>
-                <input className="form-control" type="number" min="1" value={form.dailyTarget}
+                <input className="form-control" type="number" min="0.1" step="0.1" value={form.dailyTarget}
                   onChange={e => set('dailyTarget', e.target.value)} />
               </div>
             </div>
@@ -424,11 +426,56 @@ function ExcelImportModal({ halaqat, parents, onClose, onSave }) {
   );
 }
 
+// ─── Helper Functions for Weekly Summary ───────────────────────────
+const getTodayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+function getWeekDays(dateInput) {
+  const [y, m, d] = dateInput.split('-');
+  const date = new Date(y, m - 1, d);
+  const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+  const days = [];
+  const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+  if (dateStr < '2026-06-20') {
+    const sunday = new Date(2026, 5, 14);
+    for (let i = 0; i < 5; i++) {
+      const current = new Date(sunday);
+      current.setDate(sunday.getDate() + i);
+      days.push({
+        dateStr: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`,
+        label: dayNames[current.getDay()],
+        shortDate: current.toLocaleDateString('ar-DZ', { month: 'numeric', day: 'numeric' }),
+      });
+    }
+  } else {
+    const day = date.getDay();
+    const diffToSat = (day + 1) % 7;
+    const saturday = new Date(date);
+    saturday.setDate(date.getDate() - diffToSat);
+
+    for (let i = 0; i < 6; i++) {
+      const current = new Date(saturday);
+      current.setDate(saturday.getDate() + i);
+      days.push({
+        dateStr: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`,
+        label: dayNames[current.getDay()],
+        shortDate: current.toLocaleDateString('ar-DZ', { month: 'numeric', day: 'numeric' }),
+      });
+    }
+  }
+  return days;
+}
+
 // ─── Students Page ────────────────────────────────────────────────
 export default function Students() {
   const [students, setStudents] = useState([]);
   const [halaqat, setHalaqat] = useState([]);
   const [parents, setParents] = useState([]);
+  const [weeklyTracking, setWeeklyTracking] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -443,19 +490,256 @@ export default function Students() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [sRes, hRes, pRes] = await Promise.all([
+      const todayStr = getTodayStr();
+      const currentWeekDays = getWeekDays(todayStr);
+      const startD = currentWeekDays[0].dateStr;
+      const endD = currentWeekDays[currentWeekDays.length - 1].dateStr;
+
+      const [sRes, hRes, pRes, tRes] = await Promise.all([
         studentsAPI.getAll(),
         halaqatAPI.getAll(),
-        usersAPI.getAll('parent')
+        usersAPI.getAll('parent'),
+        trackingAPI.getAllRange({ startDate: startD, endDate: endD })
       ]);
       setStudents(sRes.data.data);
       setHalaqat(hRes.data.data);
       setParents(pRes.data.data);
+      setWeeklyTracking(tRes.data.data || []);
     } catch { toast.error('فشل التحميل'); }
     finally { setLoading(false); }
   };
 
+  const getStudentWeeklySummary = (studentId, dailyTarget) => {
+    const todayStr = getTodayStr();
+    const currentWeekDays = getWeekDays(todayStr);
+    
+    const studentRecs = weeklyTracking.filter(r => {
+      const rid = r.studentId?._id || r.studentId;
+      return String(rid) === String(studentId);
+    });
+
+    const recordsMap = {};
+    studentRecs.forEach(r => {
+      const rDate = r.date.slice(0, 10);
+      recordsMap[rDate] = r;
+    });
+
+    let totalPages = 0;
+
+    const daysData = currentWeekDays.map(day => {
+      const rec = recordsMap[day.dateStr];
+      let statusText = '—';
+      let badgeClass = 'badge-gray';
+      let pagesVal = '';
+
+      if (rec) {
+        if (rec.attendance === 'absent') {
+          statusText = 'غائب';
+          badgeClass = 'badge-danger';
+        } else if (rec.attendance === 'excused') {
+          statusText = 'عذر';
+          badgeClass = 'badge-gold';
+        } else {
+          const pages = Number(rec.pagesMemorized) || 0;
+          totalPages += pages;
+          pagesVal = `${pages} ص`;
+          
+          if (pages >= dailyTarget) {
+            statusText = 'اكتمل';
+            badgeClass = 'badge-green';
+          } else if (pages > 0) {
+            statusText = 'جزئي';
+            badgeClass = 'badge-gold';
+          } else {
+            statusText = 'لم يحفظ';
+            badgeClass = 'badge-danger';
+          }
+        }
+      }
+
+      return {
+        ...day,
+        statusText,
+        badgeClass,
+        pagesVal,
+        isLate: rec?.isLate
+      };
+    });
+
+    return { daysData, totalPages };
+  };
+
   useEffect(() => { fetchAll(); }, []);
+
+  const handleDailyTargetChange = (studentId, value) => {
+    setStudents(prev => prev.map(s => {
+      if (s._id === studentId) {
+        return { ...s, dailyTarget: value };
+      }
+      return s;
+    }));
+  };
+
+  const handleDailyTargetBlur = async (studentId, value) => {
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || numValue <= 0) {
+      toast.error('المقدار المدخل غير صالح. يجب أن يكون أكبر من 0');
+      fetchAll();
+      return;
+    }
+
+    try {
+      await studentsAPI.update(studentId, { dailyTarget: numValue });
+      setStudents(prev => prev.map(s => {
+        if (s._id === studentId) {
+          return { ...s, dailyTarget: numValue };
+        }
+        return s;
+      }));
+      toast.success('تم تحديث القسط بنجاح ✅');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'فشل تحديث القسط ❌');
+      fetchAll();
+    }
+  };
+
+  const handleExportAllHalaqat = async () => {
+    const toastId = toast.loading('جاري تصدير التقرير الفاخر...');
+    try {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'نظام متابعة التحصيل';
+
+      const colors = {
+        emerald: 'FF064E3B', // زمردي غامق
+        gold: 'FFB45309',    // ذهبي
+        lightEmerald: 'FFECFDF5',
+        grayBg: 'FFF9FAFB',
+        textDark: 'FF111827',
+        border: 'FFE5E7EB',
+        lightGray: 'FFF3F4F6'
+      };
+
+      let hasStudents = false;
+
+      // إضافة ورقة عمل لكل حلقة بها طلاب
+      for (const halaqa of halaqat) {
+        const halaqaStudents = students.filter(s => String(s.halaqaId?._id || s.halaqaId) === String(halaqa._id));
+        if (halaqaStudents.length === 0) continue;
+        
+        hasStudents = true;
+
+        // اسم ورقة العمل لا يزيد عن 31 حرفاً
+        const sheetName = halaqa.name.substring(0, 30);
+        const worksheet = workbook.addWorksheet(sheetName, {
+          views: [{ rightToLeft: true, showGridLines: true }]
+        });
+
+        // 1. ترويسة الحلقة (Emerald Title)
+        worksheet.mergeCells('A1:G2');
+        const headerCell = worksheet.getCell('A1');
+        headerCell.value = `قائمة طلاب حلقة: ${halaqa.name}`;
+        headerCell.font = { name: 'Arial', bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+        headerCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.emerald } };
+        headerCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        worksheet.getRow(1).height = 25;
+        worksheet.getRow(2).height = 25;
+
+        // 2. بطاقة معلومات الحلقة (Info Row)
+        worksheet.mergeCells('A3:G4');
+        const infoCell = worksheet.getCell('A3');
+        infoCell.value = `👤 مشرف الحلقة: ${halaqa.supervisor || 'غير محدد'}   |   📊 عدد الطلاب: ${halaqaStudents.length} طلاب   |   📅 تاريخ التصدير: ${new Date().toLocaleDateString('ar-DZ')}`;
+        infoCell.font = { name: 'Arial', bold: true, size: 11, color: { argb: colors.textDark } };
+        infoCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.lightEmerald } };
+        infoCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        infoCell.border = {
+          bottom: { style: 'medium', color: { argb: colors.gold } }
+        };
+        worksheet.getRow(3).height = 20;
+        worksheet.getRow(4).height = 20;
+
+        worksheet.addRow([]); // Spacer row 5
+
+        // تعريف الأعمدة
+        const columns = [
+          { header: '#', key: 'idx', width: 6 },
+          { header: 'اسم الطالب الكامل', key: 'name', width: 28 },
+          { header: 'المستوى', key: 'level', width: 14 },
+          { header: 'القسط اليومي (صفحات)', key: 'target', width: 20 },
+          { header: 'بداية السورة', key: 'startSurah', width: 18 },
+          { header: 'اسم ولي الأمر', key: 'parent', width: 25 },
+          { header: 'رقم هاتف ولي الأمر', key: 'parentPhone', width: 20 }
+        ];
+
+        worksheet.columns = columns.map(col => ({ key: col.key, width: col.width }));
+
+        // كتابة وتنسيق رؤوس الجدول في الصف 6
+        const tableHeader = worksheet.getRow(6);
+        tableHeader.values = columns.map(col => col.header);
+        tableHeader.height = 30;
+        tableHeader.eachCell((cell) => {
+          cell.font = { name: 'Arial', bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF374151' } }; // Charcoal header
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.border = { 
+            bottom: { style: 'medium', color: { argb: colors.gold } },
+            top: { style: 'thin', color: { argb: colors.border } },
+            left: { style: 'thin', color: { argb: colors.border } },
+            right: { style: 'thin', color: { argb: colors.border } }
+          };
+        });
+
+        // إضافة بيانات الطلاب
+        halaqaStudents.forEach((st, idx) => {
+          const rowData = {
+            idx: idx + 1,
+            name: st.name,
+            level: levelLabel(st.level) || st.level,
+            target: st.dailyTarget,
+            startSurah: st.startSurah,
+            parent: st.parentId?.fullName || st.parent?.fullName || '—',
+            parentPhone: st.parentId?.phoneNumber || st.parent?.phoneNumber || '—'
+          };
+
+          const row = worksheet.addRow(rowData);
+          row.height = 25;
+
+          const isEven = idx % 2 === 1;
+          row.eachCell((cell, colNumber) => {
+            cell.font = { name: 'Arial', size: 10 };
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+            cell.border = { 
+              bottom: { style: 'thin', color: { argb: colors.border } },
+              left: { style: 'thin', color: { argb: colors.border } },
+              right: { style: 'thin', color: { argb: colors.border } }
+            };
+
+            if (isEven) {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.lightGray } };
+            }
+
+            if (colNumber === 2) { // الاسم: عريض ومحاذاة لليمين
+              cell.font = { name: 'Arial', bold: true, size: 10 };
+              cell.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
+            }
+          });
+        });
+      }
+
+      if (!hasStudents) {
+        toast.error('لا يوجد طلاب في أي حلقة للتصدير', { id: toastId });
+        return;
+      }
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      saveAs(blob, 'قائمة_الطلبة_حسب_الحلقات.xlsx');
+
+      toast.success('تم تصدير التقرير الفاخر بنجاح 💎', { id: toastId });
+    } catch (err) {
+      console.error(err);
+      toast.error('حدث خطأ أثناء تصدير ملف إكسل ❌', { id: toastId });
+    }
+  };
 
   const handleDeleteClick = (id, name) => {
     setDeleteId(id);
@@ -494,6 +778,9 @@ export default function Students() {
           <span className="badge badge-green">{students.length}</span>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="btn btn-secondary" onClick={handleExportAllHalaqat} style={{ gap: '0.4rem' }}>
+            <FileSpreadsheet size={18} /> تصدير إكسل للحلقات
+          </button>
           <button className="btn btn-secondary" onClick={() => setShowImportModal(true)}>
             <UploadCloud size={18} /> استيراد إكسل
           </button>
@@ -551,18 +838,61 @@ export default function Students() {
               {filtered.map((s, i) => (
                 <tr key={s._id}>
                   <td style={{ color: 'var(--text-muted)', width: 40 }}>{i + 1}</td>
-                  <td style={{ fontWeight: 600 }}>{s.name}</td>
+                  <td className="student-name-cell">
+                    {(() => {
+                      const { daysData, totalPages } = getStudentWeeklySummary(s._id, s.dailyTarget);
+                      return (
+                        <>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <span>{s.name}</span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.06)', padding: '1px 6px', borderRadius: '4px', fontWeight: 500 }}>
+                              {totalPages} ص
+                            </span>
+                          </div>
+                          
+                          <div className="weekly-tooltip">
+                            <div className="tooltip-title">
+                              <span>متابعة الأسبوع الحالي</span>
+                              <span>المجموع: {totalPages} ص</span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              {daysData.map(day => (
+                                <div className="tooltip-day-row" key={day.dateStr}>
+                                  <span className="tooltip-day-label">
+                                    {day.label} <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginRight: '3px' }}>({day.shortDate})</span>
+                                  </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    {day.isLate && <span style={{ fontSize: '0.65rem', color: 'var(--gold-500)', fontWeight: 'bold' }}>ت</span>}
+                                    {day.pagesVal && <span style={{ fontWeight: 700, fontSize: '0.75rem', color: 'var(--text-primary)' }}>{day.pagesVal}</span>}
+                                    <span className={`tooltip-day-badge ${day.badgeClass}`}>
+                                      {day.statusText}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </td>
                   <td><span className={`badge ${levelClass(s.level)}`}>{levelLabel(s.level)}</span></td>
                   <td style={{ color: 'var(--text-secondary)' }}>{s.startSurah}</td>
                   <td>
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                      width: 36, height: 36, borderRadius: '50%',
-                      background: 'rgba(34,197,94,0.12)', color: 'var(--green-400)',
-                      fontWeight: 800, fontSize: '0.9rem',
-                    }}>
-                      {s.dailyTarget}
-                    </span>
+                    <input
+                      type="number"
+                      min="0.1"
+                      step="0.1"
+                      className="daily-target-inline-input"
+                      value={s.dailyTarget}
+                      onChange={(e) => handleDailyTargetChange(s._id, e.target.value)}
+                      onBlur={(e) => handleDailyTargetBlur(s._id, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.target.blur();
+                        }
+                      }}
+                    />
                   </td>
                   <td>
                     <span className="badge badge-blue">

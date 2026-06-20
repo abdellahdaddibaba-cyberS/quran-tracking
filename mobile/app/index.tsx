@@ -121,8 +121,9 @@ export default function HomeScreen() {
           activeOpacity={0.8}
         >
           <View style={styles.cardHeader}>
-            <View style={styles.chevronContainer}>
-              <ChevronLeft size={20} color={colors.textMuted} />
+            <View style={styles.progressLinkContainer}>
+              <ChevronLeft size={16} color={colors.primary} />
+              <Text style={styles.progressLinkText}>تحصيل الابن</Text>
             </View>
             
             <View style={styles.studentInfo}>
@@ -229,7 +230,10 @@ export default function HomeScreen() {
       <View style={styles.content}>
         {/* Section Header */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>متابعة الأبناء</Text>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={styles.sectionTitle}>متابعة الأبناء</Text>
+            <Text style={styles.sectionSubtitle}>اضغط على الابن لعرض تفاصيل تحصيله</Text>
+          </View>
         </View>
 
         {/* Students List */}
@@ -396,6 +400,13 @@ const getStyles = (colors: any, theme: string, typography: any) => StyleSheet.cr
     fontFamily: typography.bold,
     textAlign: 'right',
   },
+  sectionSubtitle: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontFamily: typography.regular,
+    textAlign: 'right',
+    marginTop: 2,
+  },
   list: {
     paddingBottom: spacing.xl,
   },
@@ -411,13 +422,19 @@ const getStyles = (colors: any, theme: string, typography: any) => StyleSheet.cr
     flexDirection: 'row',
     alignItems: 'center',
   },
-  chevronContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.sm + 4,
-    backgroundColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
-    justifyContent: 'center',
+  progressLinkContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: theme === 'dark' ? 'rgba(29, 78, 216, 0.15)' : 'rgba(29, 78, 216, 0.08)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radius.sm + 2,
+    gap: spacing.xs,
+  },
+  progressLinkText: {
+    fontSize: 12,
+    fontFamily: typography.bold,
+    color: colors.primary,
   },
   studentInfo: {
     flex: 1,

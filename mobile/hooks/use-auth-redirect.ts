@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useRouter, useSegments } from 'expo-router';
+import { useRouter, useSegments, useRootNavigationState } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 
 const PARENT_ROLE = 'parent';
@@ -11,9 +11,13 @@ export function useAuthRedirect() {
   const { user, loading, logout } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
 
   useEffect(() => {
     if (loading) return;
+
+    // تأكد من أن حالة التنقل في الجذر جاهزة قبل إعادة التوجيه
+    if (!rootNavigationState?.key) return;
 
     const onLoginScreen = segments[0] === 'login';
 
@@ -27,5 +31,5 @@ export function useAuthRedirect() {
     } else if (user && onLoginScreen) {
       router.replace('/');
     }
-  }, [user, loading, segments, router, logout]);
+  }, [user, loading, segments, router, logout, rootNavigationState]);
 }

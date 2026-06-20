@@ -95,7 +95,7 @@ export default function StudentDetailScreen() {
           <Text style={styles.dateText}>
             {new Date(item.date).toLocaleDateString('ar-DZ', { weekday: 'long', day: 'numeric', month: 'long' })}
           </Text>
-          <Calendar size={16} color={colors.textMuted} />
+          <Calendar size={16} color={colors.primary} />
         </View>
 
         <View style={styles.statsRow}>
@@ -329,8 +329,8 @@ const getStyles = (colors: any, theme: string, typography: any) => StyleSheet.cr
   },
   sectionTitle: {
     color: colors.text,
-    fontSize: 14,
-    fontFamily: typography.bold,
+    fontSize: 15,
+    fontFamily: typography.black,
     textAlign: 'right',
   },
   weeklyStatsContainer: {
@@ -352,7 +352,7 @@ const getStyles = (colors: any, theme: string, typography: any) => StyleSheet.cr
   weeklyStatText: {
     color: colors.textSecondary,
     fontSize: 10,
-    fontFamily: typography.semiBold,
+    fontFamily: typography.bold,
   },
   trackingCard: {
     backgroundColor: colors.card,
@@ -371,9 +371,9 @@ const getStyles = (colors: any, theme: string, typography: any) => StyleSheet.cr
     marginBottom: 16,
   },
   dateText: {
-    color: colors.textMuted,
-    fontSize: 13,
-    fontFamily: typography.semiBold,
+    color: colors.text,
+    fontSize: 14,
+    fontFamily: typography.bold,
   },
   statsRow: {
     flexDirection: 'row-reverse',
