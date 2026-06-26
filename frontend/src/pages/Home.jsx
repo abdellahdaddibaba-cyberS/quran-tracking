@@ -205,8 +205,8 @@ export default function Home({ user }) {
                   background: syncStatus === 'success'
                     ? 'linear-gradient(135deg, #22c55e, #16a34a)'
                     : syncStatus === 'error'
-                    ? 'linear-gradient(135deg, #ef4444, #dc2626)'
-                    : 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                      ? 'linear-gradient(135deg, #ef4444, #dc2626)'
+                      : 'linear-gradient(135deg, #3b82f6, #2563eb)',
                   color: 'white',
                   opacity: syncing ? 0.75 : 1,
                   boxShadow: '0 2px 8px rgba(59,130,246,0.3)',

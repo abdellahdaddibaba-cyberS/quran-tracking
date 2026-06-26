@@ -286,7 +286,7 @@ export default function DailyInput() {
       }
       nextSurah = SURAHS[nextIdx];
     }
-    
+
     try {
       await studentsAPI.update(studentId, { currentSurah: nextSurah });
       // تحديث الحالة المحلية للطلاب
@@ -297,6 +297,23 @@ export default function DailyInput() {
       );
       toast.success(
         `📖 ${studentName} — انتقلت السورة الحالية إلى: سورة ${nextSurah}`,
+        { duration: 4000 }
+      );
+    } catch {
+      toast.error('فشل تحديث السورة الحالية للطالب');
+    }
+  }, []);
+
+  const handleSelectSurah = useCallback(async (studentId, studentName, selectedSurah) => {
+    try {
+      await studentsAPI.update(studentId, { currentSurah: selectedSurah });
+      setStudents(prev =>
+        prev.map(st =>
+          st._id === studentId ? { ...st, currentSurah: selectedSurah } : st
+        )
+      );
+      toast.success(
+        `📖 ${studentName} — تم تغيير السورة الحالية إلى: سورة ${selectedSurah}`,
         { duration: 4000 }
       );
     } catch {
@@ -515,9 +532,9 @@ export default function DailyInput() {
                           <Trash2 size={14} />
                         </button>
                       </div>
-                      <div style={{ 
-                        marginTop: '4px', 
-                        fontSize: '0.75rem', 
+                      <div style={{
+                        marginTop: '4px',
+                        fontSize: '0.75rem',
                         color: 'var(--green-400)',
                         fontWeight: 800,
                         background: 'rgba(34, 197, 94, 0.12)',
@@ -555,156 +572,169 @@ export default function DailyInput() {
                 const weekColor = weekPct >= 80 ? 'var(--green-400)' : weekPct >= 50 ? 'var(--gold-400)' : 'var(--danger)';
                 const cumTotal = Number(cumulativeTotals[st._id] || 0);
                 return (
-                <tr key={st._id}>
-                  <td style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
-                  <td style={{ verticalAlign: 'middle' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{st.name}</span>
-                      <button
-                        onClick={() => handleAdvanceSurah(st._id, st.name, st.currentSurah || st.startSurah)}
-                        style={{
-                          background: 'rgba(245,158,11,0.1)',
-                          color: 'var(--gold-400)',
-                          border: '1px solid rgba(245,158,11,0.2)',
-                          borderRadius: '4px',
-                          padding: '2px 6px',
-                          fontSize: '0.7rem',
-                          marginTop: '4px',
-                          cursor: 'pointer',
-                          alignSelf: 'flex-start',
-                          fontWeight: 'normal',
-                          whiteSpace: 'nowrap'
-                        }}
-                        title="انقر للتقدم للسورة التالية"
-                      >
-                        {st.currentSurah || st.startSurah || 'غير محدد'}
-                      </button>
-                    </div>
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                      width: 28, height: 28, borderRadius: '50%',
-                      background: 'rgba(34,197,94,0.12)', color: 'var(--green-400)',
-                      fontWeight: 800, fontSize: '0.8rem'
-                    }}>
-                      {st.dailyTarget}
-                    </span>
-                  </td>
-                  {weekDays.map((day, colIdx) => {
-                    const cellData = matrix[st._id]?.[day.dateStr] || { pages: '', attendance: '', isLate: false };
-                    const val = cellData.pages;
-                    const entered = val !== '';
-                    const success = entered && Number(val) >= st.dailyTarget;
-                    const zero = (entered && Number(val) === 0) || cellData.attendance === 'absent';
+                  <tr key={st._id}>
+                    <td style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
+                    <td style={{ verticalAlign: 'middle' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{st.name}</span>
+                        <select
+                          value={st.currentSurah || st.startSurah || ''}
+                          onChange={(e) => handleSelectSurah(st._id, st.name, e.target.value)}
+                          style={{
+                            background: 'rgba(245,158,11,0.1)',
+                            color: 'var(--gold-400)',
+                            border: '1px solid rgba(245,158,11,0.2)',
+                            borderRadius: '4px',
+                            padding: '2px 6px',
+                            fontSize: '0.75rem',
+                            marginTop: '4px',
+                            cursor: 'pointer',
+                            alignSelf: 'flex-start',
+                            fontWeight: 'bold',
+                            outline: 'none',
+                            maxWidth: '120px',
+                            textAlign: 'right',
+                            direction: 'rtl'
+                          }}
+                          title="اختر السورة الحالية للطالب يدوياً"
+                        >
+                          <option value="" disabled style={{ background: 'var(--bg-card)', color: 'var(--text-muted)' }}>غير محدد</option>
+                          {SURAHS.map(surah => (
+                            <option 
+                              key={surah} 
+                              value={surah}
+                              style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+                            >
+                              {surah}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 28, height: 28, borderRadius: '50%',
+                        background: 'rgba(34,197,94,0.12)', color: 'var(--green-400)',
+                        fontWeight: 800, fontSize: '0.8rem'
+                      }}>
+                        {st.dailyTarget}
+                      </span>
+                    </td>
+                    {weekDays.map((day, colIdx) => {
+                      const cellData = matrix[st._id]?.[day.dateStr] || { pages: '', attendance: '', isLate: false };
+                      const val = cellData.pages;
+                      const entered = val !== '';
+                      const success = entered && Number(val) >= st.dailyTarget;
+                      const zero = (entered && Number(val) === 0) || cellData.attendance === 'absent';
 
-                    return (
-                      <td key={day.dateStr} style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '0.5rem' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                          <input
-                            id={`cell-${idx}-${colIdx}`}
-                            className="matrix-input"
-                            type="number"
-                            min="0"
-                            max="50"
-                            step="0.5"
-                            placeholder="-"
-                            value={cellData.attendance === 'absent' ? '0' : val}
-                            disabled={cellData.attendance === 'absent'}
-                            onChange={e => updateCell(st._id, day.dateStr, 'pages', e.target.value)}
-                            onKeyDown={e => handleKeyDown(e, idx, colIdx)}
-                            style={{
-                              borderColor: (success || cellData.isSurahCompleted) ? 'var(--green-500)' : zero ? 'var(--danger)' : 'var(--border)',
-                              backgroundColor: cellData.attendance === 'absent' ? 'rgba(239,68,68,0.15)' : (success || cellData.isSurahCompleted) ? 'var(--green-600)' : zero ? 'rgba(239,68,68,0.1)' : 'var(--bg-primary)',
-                              color: (success || cellData.isSurahCompleted) ? '#fff' : 'var(--text-primary)',
-                              boxShadow: (success || cellData.isSurahCompleted) ? '0 0 10px rgba(34,197,94,0.3)' : ''
-                            }}
-                          />
-                          <button
-                            onClick={() => {
-                              const nextVal = !cellData.isSurahCompleted;
-                              updateCell(st._id, day.dateStr, 'isSurahCompleted', nextVal);
-                              if (nextVal) {
-                                handleAdvanceSurah(st._id, st.name, st.currentSurah || st.startSurah);
-                              }
-                            }}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: cellData.isSurahCompleted ? 'var(--gold-400)' : 'var(--text-muted)',
-                              cursor: 'pointer',
-                              padding: 0,
-                              opacity: cellData.isSurahCompleted ? 1 : 0.3,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '2px',
-                              fontSize: '0.65rem'
-                            }}
-                            title="أتم السورة (يحسب كإنجاز كامل)"
-                          >
-                            <Star size={12} fill={cellData.isSurahCompleted ? 'currentColor' : 'none'} />
-                            سورة
-                          </button>
-
-                          <div style={{ display: 'flex', gap: '8px' }}>
+                      return (
+                        <td key={day.dateStr} style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '0.5rem' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                            <input
+                              id={`cell-${idx}-${colIdx}`}
+                              className="matrix-input"
+                              type="number"
+                              min="0"
+                              max="50"
+                              step="0.5"
+                              placeholder="-"
+                              value={cellData.attendance === 'absent' ? '0' : val}
+                              disabled={cellData.attendance === 'absent'}
+                              onChange={e => updateCell(st._id, day.dateStr, 'pages', e.target.value)}
+                              onKeyDown={e => handleKeyDown(e, idx, colIdx)}
+                              style={{
+                                borderColor: (success || cellData.isSurahCompleted) ? 'var(--green-500)' : zero ? 'var(--danger)' : 'var(--border)',
+                                backgroundColor: cellData.attendance === 'absent' ? 'rgba(239,68,68,0.15)' : (success || cellData.isSurahCompleted) ? 'var(--green-600)' : zero ? 'rgba(239,68,68,0.1)' : 'var(--bg-primary)',
+                                color: (success || cellData.isSurahCompleted) ? '#fff' : 'var(--text-primary)',
+                                boxShadow: (success || cellData.isSurahCompleted) ? '0 0 10px rgba(34,197,94,0.3)' : ''
+                              }}
+                            />
                             <button
                               onClick={() => {
-                                const isAbsent = cellData.attendance === 'absent';
-                                updateCell(st._id, day.dateStr, 'attendance', isAbsent ? 'present' : 'absent');
-                                if (!isAbsent) {
-                                  updateCell(st._id, day.dateStr, 'pages', '0');
+                                const nextVal = !cellData.isSurahCompleted;
+                                updateCell(st._id, day.dateStr, 'isSurahCompleted', nextVal);
+                                if (nextVal) {
+                                  handleAdvanceSurah(st._id, st.name, st.currentSurah || st.startSurah);
                                 }
                               }}
                               style={{
-                                background: cellData.attendance === 'absent' ? 'rgba(239,68,68,0.2)' : 'none',
-                                border: '1px solid ' + (cellData.attendance === 'absent' ? 'var(--danger)' : 'rgba(255,255,255,0.1)'),
-                                color: cellData.attendance === 'absent' ? 'var(--danger)' : 'var(--text-muted)',
-                                borderRadius: '4px',
+                                background: 'none',
+                                border: 'none',
+                                color: cellData.isSurahCompleted ? 'var(--gold-400)' : 'var(--text-muted)',
                                 cursor: 'pointer',
-                                padding: '2px 6px',
-                                fontSize: '0.6rem',
-                                fontWeight: 'bold'
+                                padding: 0,
+                                opacity: cellData.isSurahCompleted ? 1 : 0.3,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '2px',
+                                fontSize: '0.65rem'
                               }}
-                              title={cellData.attendance === 'absent' ? 'إلغاء الغياب' : 'تسجيل غياب'}
+                              title="أتم السورة (يحسب كإنجاز كامل)"
                             >
-                              غ
+                              <Star size={12} fill={cellData.isSurahCompleted ? 'currentColor' : 'none'} />
+                              سورة
                             </button>
-                            <button
-                              onClick={() => updateCell(st._id, day.dateStr, 'isLate', !cellData.isLate)}
-                              style={{
-                                background: cellData.isLate ? 'rgba(234,179,8,0.2)' : 'none',
-                                border: '1px solid ' + (cellData.isLate ? 'var(--gold-400)' : 'rgba(255,255,255,0.1)'),
-                                color: cellData.isLate ? 'var(--gold-400)' : 'var(--text-muted)',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                padding: '2px 6px',
-                                fontSize: '0.6rem',
-                                fontWeight: 'bold'
-                              }}
-                              title={cellData.isLate ? 'إلغاء التأخر' : 'تسجيل تأخر'}
-                            >
-                              ت
-                            </button>
+
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button
+                                onClick={() => {
+                                  const isAbsent = cellData.attendance === 'absent';
+                                  updateCell(st._id, day.dateStr, 'attendance', isAbsent ? 'present' : 'absent');
+                                  if (!isAbsent) {
+                                    updateCell(st._id, day.dateStr, 'pages', '0');
+                                  }
+                                }}
+                                style={{
+                                  background: cellData.attendance === 'absent' ? 'rgba(239,68,68,0.2)' : 'none',
+                                  border: '1px solid ' + (cellData.attendance === 'absent' ? 'var(--danger)' : 'rgba(255,255,255,0.1)'),
+                                  color: cellData.attendance === 'absent' ? 'var(--danger)' : 'var(--text-muted)',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  padding: '2px 6px',
+                                  fontSize: '0.6rem',
+                                  fontWeight: 'bold'
+                                }}
+                                title={cellData.attendance === 'absent' ? 'إلغاء الغياب' : 'تسجيل غياب'}
+                              >
+                                غ
+                              </button>
+                              <button
+                                onClick={() => updateCell(st._id, day.dateStr, 'isLate', !cellData.isLate)}
+                                style={{
+                                  background: cellData.isLate ? 'rgba(234,179,8,0.2)' : 'none',
+                                  border: '1px solid ' + (cellData.isLate ? 'var(--gold-400)' : 'rgba(255,255,255,0.1)'),
+                                  color: cellData.isLate ? 'var(--gold-400)' : 'var(--text-muted)',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  padding: '2px 6px',
+                                  fontSize: '0.6rem',
+                                  fontWeight: 'bold'
+                                }}
+                                title={cellData.isLate ? 'إلغاء التأخر' : 'تسجيل تأخر'}
+                              >
+                                ت
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                    );
-                  })}
-                  {/* عمود مجموع الأسبوع */}
-                  <td style={{ textAlign: 'center', background: 'rgba(34,197,94,0.04)', padding: '0.5rem', borderRight: '2px solid rgba(34,197,94,0.15)', verticalAlign: 'middle' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                      <span style={{ fontWeight: 900, fontSize: '1.1rem', color: weekColor }}>{weekSum}</span>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.06)', borderRadius: 999, padding: '1px 6px' }}>{weekPct}%</span>
-                    </div>
-                  </td>
-                  {/* عمود الإجمالي التراكمي */}
-                  <td style={{ textAlign: 'center', background: 'rgba(99,102,241,0.04)', padding: '0.5rem', borderRight: '2px solid rgba(99,102,241,0.15)', verticalAlign: 'middle' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                      <span style={{ fontWeight: 900, fontSize: '1.1rem', color: '#818cf8' }}>{cumTotal}</span>
-                      <span style={{ fontSize: '0.65rem', color: 'rgba(129,140,248,0.7)', background: 'rgba(99,102,241,0.12)', borderRadius: 999, padding: '1px 7px', fontWeight: 600 }}>صفحة</span>
-                    </div>
-                  </td>
-                </tr>
+                        </td>
+                      );
+                    })}
+                    {/* عمود مجموع الأسبوع */}
+                    <td style={{ textAlign: 'center', background: 'rgba(34,197,94,0.04)', padding: '0.5rem', borderRight: '2px solid rgba(34,197,94,0.15)', verticalAlign: 'middle' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                        <span style={{ fontWeight: 900, fontSize: '1.1rem', color: weekColor }}>{weekSum}</span>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.06)', borderRadius: 999, padding: '1px 6px' }}>{weekPct}%</span>
+                      </div>
+                    </td>
+                    {/* عمود الإجمالي التراكمي */}
+                    <td style={{ textAlign: 'center', background: 'rgba(99,102,241,0.04)', padding: '0.5rem', borderRight: '2px solid rgba(99,102,241,0.15)', verticalAlign: 'middle' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                        <span style={{ fontWeight: 900, fontSize: '1.1rem', color: '#818cf8' }}>{cumTotal}</span>
+                        <span style={{ fontSize: '0.65rem', color: 'rgba(129,140,248,0.7)', background: 'rgba(99,102,241,0.12)', borderRadius: 999, padding: '1px 7px', fontWeight: 600 }}>صفحة</span>
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>

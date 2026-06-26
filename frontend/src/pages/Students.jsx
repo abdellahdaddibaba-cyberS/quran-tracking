@@ -30,6 +30,7 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
     name: student?.name || '',
     level: student?.level || 'level1',
     startSurah: student?.startSurah || '',
+    currentSurah: student?.currentSurah || student?.startSurah || '',
     dailyTarget: student?.dailyTarget || 1,
     halaqaId: student?.halaqaId?._id || student?.halaqaId || '',
     parentId: student?.parentId?._id || student?.parentId || '',
@@ -40,12 +41,20 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [suggestionField, setSuggestionField] = useState('');
 
   const set = (k, v) => {
-    setForm(p => ({ ...p, [k]: v }));
+    setForm(p => {
+      const updated = { ...p, [k]: v };
+      if (k === 'startSurah' && !student) {
+        updated.currentSurah = v;
+      }
+      return updated;
+    });
 
     // منطق الاقتراحات عند كتابة السورة
-    if (k === 'startSurah') {
+    if (k === 'startSurah' || k === 'currentSurah') {
+      setSuggestionField(k);
       setSelectedIndex(-1);
       if (v.trim().length > 0) {
         const filtered = SURAHS.filter(s => s.includes(v)).slice(0, 5);
@@ -70,7 +79,7 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
     } else if (e.key === 'Enter') {
       if (selectedIndex >= 0) {
         e.preventDefault();
-        set('startSurah', suggestions[selectedIndex]);
+        set(suggestionField, suggestions[selectedIndex]);
         setShowSuggestions(false);
         setSelectedIndex(-1);
       }
@@ -89,6 +98,9 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
     setSaving(true);
     try {
       const payload = { ...form };
+      if (!payload.currentSurah) {
+        payload.currentSurah = payload.startSurah;
+      }
       if (payload.parentId) {
         delete payload.parentName;
         delete payload.parentPhone;
@@ -123,6 +135,15 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
                 <input className="form-control" placeholder="اسم الطالب" value={form.name}
                   onChange={e => set('name', e.target.value)} />
               </div>
+              <div className="form-group">
+                <label className="form-label">المستوى</label>
+                <select className="form-control" value={form.level} onChange={e => set('level', e.target.value)}>
+                  {LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="form-row">
               <div className="form-group" style={{ position: 'relative' }}>
                 <label className="form-label">بداية السورة *</label>
                 <input
@@ -133,11 +154,13 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
                   onChange={e => set('startSurah', e.target.value)}
                   onKeyDown={handleKeyDown}
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                  onFocus={() => form.startSurah && setSuggestions(SURAHS.filter(s => s.includes(form.startSurah)).slice(0, 5))}
+                  onFocus={() => {
+                    setSuggestionField('startSurah');
+                    if (form.startSurah) setSuggestions(SURAHS.filter(s => s.includes(form.startSurah)).slice(0, 5));
+                  }}
                 />
 
-                {/* قائمة المقترحات الذكية */}
-                {showSuggestions && suggestions.length > 0 && (
+                {showSuggestions && suggestionField === 'startSurah' && suggestions.length > 0 && (
                   <div style={{
                     position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
                     background: 'var(--bg-card)', border: '1px solid var(--border)',
@@ -166,27 +189,67 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
                   </div>
                 )}
               </div>
+
+              <div className="form-group" style={{ position: 'relative' }}>
+                <label className="form-label">السورة الحالية</label>
+                <input
+                  className="form-control"
+                  placeholder="تلقائياً نفس البداية"
+                  value={form.currentSurah}
+                  autoComplete="off"
+                  onChange={e => set('currentSurah', e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                  onFocus={() => {
+                    setSuggestionField('currentSurah');
+                    if (form.currentSurah) setSuggestions(SURAHS.filter(s => s.includes(form.currentSurah)).slice(0, 5));
+                  }}
+                />
+
+                {showSuggestions && suggestionField === 'currentSurah' && suggestions.length > 0 && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)', marginTop: '4px',
+                    boxShadow: 'var(--shadow-lg)',
+                    overflow: 'hidden', animation: 'fadeInDown 0.2s ease-out'
+                  }}>
+                    {suggestions.map((s, index) => (
+                      <div
+                        key={s}
+                        style={{
+                          padding: '0.6rem 1rem', cursor: 'pointer',
+                          fontSize: '0.85rem', color: 'var(--text-primary)',
+                          background: index === selectedIndex ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                          transition: 'background 0.2s', borderBottom: '1px solid var(--border)'
+                        }}
+                        onMouseEnter={() => setSelectedIndex(index)}
+                        onClick={() => {
+                          set('currentSurah', s);
+                          setShowSuggestions(false);
+                        }}
+                      >
+                        سورة {s}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
+
             <style>{`
               @keyframes fadeInDown {
                 from { opacity: 0; transform: translateY(-10px); }
                 to { opacity: 1; transform: translateY(0); }
               }
             `}</style>
+
             <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">المستوى</label>
-                <select className="form-control" value={form.level} onChange={e => set('level', e.target.value)}>
-                  {LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
-                </select>
-              </div>
               <div className="form-group">
                 <label className="form-label">القسط اليومي (صفحات) *</label>
                 <input className="form-control" type="number" min="0.1" step="0.1" value={form.dailyTarget}
                   onChange={e => set('dailyTarget', e.target.value)} />
               </div>
-            </div>
-            <div className="form-row">
               <div className="form-group">
                 <label className="form-label">الحلقة *</label>
                 <select className="form-control" value={form.halaqaId} onChange={e => set('halaqaId', e.target.value)}>
@@ -194,7 +257,10 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
                   {halaqat.map(h => <option key={h._id} value={h._id}>{h.name}</option>)}
                 </select>
               </div>
-              <div className="form-group">
+            </div>
+
+            <div className="form-row">
+              <div className="form-group" style={{ gridColumn: 'span 2' }}>
                 <label className="form-label">ولي الأمر</label>
                 <select className="form-control" value={form.parentId} onChange={e => set('parentId', e.target.value)}>
                   <option value="">اختر ولي الأمر (اختياري)</option>
@@ -202,6 +268,7 @@ function StudentModal({ student, halaqat, parents, onClose, onSave }) {
                 </select>
               </div>
             </div>
+
             {!form.parentId && (
               <div className="form-row animate-fade-in" style={{ marginTop: '1rem', borderTop: '1px dashed var(--border)', paddingTop: '1rem' }}>
                 <div className="form-group">
@@ -323,10 +390,10 @@ function ExcelImportModal({ halaqat, parents, onClose, onSave }) {
               const normPPhone = p.phoneNumber ? p.phoneNumber.replace(/[^\d]/g, '') : '';
               const normPUsername = p.username ? p.username.replace(/[^\d]/g, '') : '';
               const normImportPhone = parentPhone ? parentPhone.replace(/[^\d]/g, '') : '';
-              
+
               const phoneMatch = normImportPhone && (normPPhone === normImportPhone || normPUsername === normImportPhone);
               const fullNameMatch = parentName && normalizeArabicKey(p.fullName) === normalizeArabicKey(parentName);
-              
+
               return phoneMatch || fullNameMatch;
             });
             if (matchedParent) {
@@ -512,7 +579,7 @@ export default function Students() {
   const getStudentWeeklySummary = (studentId, dailyTarget) => {
     const todayStr = getTodayStr();
     const currentWeekDays = getWeekDays(todayStr);
-    
+
     const studentRecs = weeklyTracking.filter(r => {
       const rid = r.studentId?._id || r.studentId;
       return String(rid) === String(studentId);
@@ -543,7 +610,7 @@ export default function Students() {
           const pages = Number(rec.pagesMemorized) || 0;
           totalPages += pages;
           pagesVal = `${pages} ص`;
-          
+
           if (pages >= dailyTarget) {
             statusText = 'اكتمل';
             badgeClass = 'badge-green';
@@ -625,7 +692,7 @@ export default function Students() {
       for (const halaqa of halaqat) {
         const halaqaStudents = students.filter(s => String(s.halaqaId?._id || s.halaqaId) === String(halaqa._id));
         if (halaqaStudents.length === 0) continue;
-        
+
         hasStudents = true;
 
         // اسم ورقة العمل لا يزيد عن 31 حرفاً
@@ -680,7 +747,7 @@ export default function Students() {
           cell.font = { name: 'Arial', bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF374151' } }; // Charcoal header
           cell.alignment = { vertical: 'middle', horizontal: 'center' };
-          cell.border = { 
+          cell.border = {
             bottom: { style: 'medium', color: { argb: colors.gold } },
             top: { style: 'thin', color: { argb: colors.border } },
             left: { style: 'thin', color: { argb: colors.border } },
@@ -707,7 +774,7 @@ export default function Students() {
           row.eachCell((cell, colNumber) => {
             cell.font = { name: 'Arial', size: 10 };
             cell.alignment = { vertical: 'middle', horizontal: 'center' };
-            cell.border = { 
+            cell.border = {
               bottom: { style: 'thin', color: { argb: colors.border } },
               left: { style: 'thin', color: { argb: colors.border } },
               right: { style: 'thin', color: { argb: colors.border } }
@@ -828,7 +895,7 @@ export default function Students() {
                 <th>#</th>
                 <th>الاسم</th>
                 <th>المستوى</th>
-                <th>بداية السورة</th>
+                <th>السورة (البداية / الحالية)</th>
                 <th>القسط (صفحات)</th>
                 <th>الحلقة</th>
                 <th>الإجراءات</th>
@@ -849,7 +916,7 @@ export default function Students() {
                               {totalPages} ص
                             </span>
                           </div>
-                          
+
                           <div className="weekly-tooltip">
                             <div className="tooltip-title">
                               <span>متابعة الأسبوع الحالي</span>
@@ -877,7 +944,14 @@ export default function Students() {
                     })()}
                   </td>
                   <td><span className={`badge ${levelClass(s.level)}`}>{levelLabel(s.level)}</span></td>
-                  <td style={{ color: 'var(--text-secondary)' }}>{s.startSurah}</td>
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>البداية: {s.startSurah}</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--gold-400)', fontWeight: 'bold' }}>
+                        الحالية: {s.currentSurah || s.startSurah || 'غير محدد'}
+                      </span>
+                    </div>
+                  </td>
                   <td>
                     <input
                       type="number"

@@ -1,6 +1,6 @@
 import { useAppTheme } from '../../context/ThemeContext';
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, SectionList, SafeAreaView, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, FlatList, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { mobileAPI } from '../../services/api';
 import { Calendar, CheckCircle, XCircle, AlertCircle, Trophy, UserX, UserCheck, BookOpen, Activity, Waves } from 'lucide-react-native';
@@ -11,6 +11,26 @@ import { useAuth } from '../../context/AuthContext';
 import { cleanStudentName } from '../../utils/name';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
+const ARABIC_WEEK_NAMES = [
+  'الأسبوع الأول',
+  'الأسبوع الثاني',
+  'الأسبوع الثالث',
+  'الأسبوع الرابع',
+  'الأسبوع الخامس',
+  'الأسبوع السادس',
+  'الأسبوع السابع',
+  'الأسبوع الثامن',
+  'الأسبوع التاسع',
+  'الأسبوع العاشر'
+];
+
+const getArabicWeekName = (weekIndexFromStart: number) => {
+  if (weekIndexFromStart <= ARABIC_WEEK_NAMES.length) {
+    return ARABIC_WEEK_NAMES[weekIndexFromStart - 1];
+  }
+  return `الأسبوع ${weekIndexFromStart}`;
+};
+
 export default function StudentDetailScreen() {
   const { colors, theme, typography } = useAppTheme();
   const styles = getStyles(colors, theme, typography);
@@ -19,6 +39,7 @@ export default function StudentDetailScreen() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const { user } = useAuth();
+  const [selectedWeekTitle, setSelectedWeekTitle] = useState<string | null>(null);
 
   const displayName = data?.student?.name ? cleanStudentName(data.student.name, user?.fullName || '') : '';
 
@@ -74,6 +95,10 @@ export default function StudentDetailScreen() {
       }));
 
       setData({ ...res.data.data, sections });
+
+      if (sections.length > 0) {
+        setSelectedWeekTitle(sections[0].title);
+      }
     } catch (error) {
       console.error(error);
     } finally {
@@ -86,8 +111,6 @@ export default function StudentDetailScreen() {
   }
 
   const renderItem = ({ item, index }: { item: any, index: number }) => {
-    const isPresent = item.attendance === 'present';
-    const isExcused = item.attendance === 'excused';
     const isLess = (item.pagesMemorized || 0) < (item.pagesRequired || 0) && !item.isSurahCompleted;
     return (
       <Animated.View entering={FadeInDown.delay(index * 50).duration(500)} style={styles.trackingCard}>
@@ -112,25 +135,16 @@ export default function StudentDetailScreen() {
           </View>
         </View>
 
-        <View style={styles.statusRow}>
-          <View style={[styles.badge, isPresent ? styles.badgeSuccess : styles.badgeDanger]}>
-            {isPresent ? (
-              <CheckCircle size={14} color={colors.success} />
-            ) : (
-              <XCircle size={14} color={colors.danger} />
-            )}
-            <Text style={[styles.badgeText, isPresent ? styles.textSuccess : styles.textDanger]}>
-              {isPresent ? 'حاضر' : isExcused ? 'غياب بعذر' : 'غائب'}
-            </Text>
-          </View>
-
-          {item.isSurahCompleted && (
+        {item.isSurahCompleted && (
+          <View style={styles.statusRow}>
             <View style={[styles.badge, styles.badgeGold]}>
               <CheckCircle size={14} color={colors.gold} />
-              <Text style={[styles.badgeText, styles.textGold]}>تم ختم السورة</Text>
+              <Text style={[styles.badgeText, styles.textGold]}>
+                {item.currentSurah ? `تم ختم سورة ${item.currentSurah}` : 'تم ختم السورة'}
+              </Text>
             </View>
-          )}
-        </View>
+          </View>
+        )}
 
         {item.notes ? (
           <View style={styles.notesBox}>
@@ -151,8 +165,6 @@ export default function StudentDetailScreen() {
       ? Math.round((tracking.filter((r: any) => r.attendance === 'present').length / tracking.length) * 100)
       : 0;
 
-    const last7 = [...tracking].slice(0, 7).reverse();
-
     return (
       <Animated.View entering={FadeInUp.duration(800)} style={styles.summaryContainer}>
         <View style={styles.statsGrid}>
@@ -172,49 +184,14 @@ export default function StudentDetailScreen() {
             <Text style={[styles.statLabel, { fontFamily: typography.semiBold }]}>معدل الحفظ</Text>
           </View>
         </View>
-
-        <View style={styles.chartSection}>
-          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Activity size={18} color={colors.primary} />
-            <Text style={styles.chartTitle}>نشاط آخر 7 أيام</Text>
-          </View>
-          <View style={styles.chartContainer}>
-            {last7.map((r: any, i: number) => {
-              const required = r.pagesRequired || 5;
-              const memorized = r.pagesMemorized || 0;
-              const progressRatio = Math.min(memorized / required, 1);
-              const heightRatio = progressRatio * 50; 
-              const isSuccess = (memorized >= required || r.isSurahCompleted) && r.attendance === 'present';
-              const isAbsent = r.attendance === 'absent';
-
-              const barColor = isAbsent
-                ? colors.textMuted
-                : isSuccess
-                  ? colors.success
-                  : colors.danger;
-
-              return (
-                <View key={i} style={styles.chartBarWrap}>
-                  <Text style={[styles.chartBarValue, { color: barColor, fontFamily: typography.bold }]}>
-                    {isAbsent ? 'غ' : memorized}
-                  </Text>
-                  <View style={[styles.chartBarTrack, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
-                    <Animated.View 
-                      entering={FadeInUp.delay(i * 100).duration(800)}
-                      style={[styles.chartBarProgress, { height: Math.max(heightRatio, 6), backgroundColor: barColor }]} 
-                    />
-                  </View>
-                  <Text style={[styles.chartDay, { fontFamily: typography.semiBold }]}>
-                    {new Date(r.date).toLocaleDateString('ar-DZ', { weekday: 'short' })}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        </View>
       </Animated.View>
     );
   };
+
+  const selectedSection = (data?.sections || []).find((s: any) => s.title === selectedWeekTitle);
+  const selectedWeekItems = selectedSection?.data || [];
+
+  const totalPages = selectedWeekItems.reduce((sum: number, item: any) => sum + (item.pagesMemorized || 0), 0);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -242,45 +219,83 @@ export default function StudentDetailScreen() {
         }
       />
 
-      <SectionList
-        sections={data?.sections || []}
+      <FlatList
+        data={selectedWeekItems}
         renderItem={renderItem}
-        renderSectionHeader={({ section: { title, data } }) => {
-          const totalPages = data.reduce((sum: number, item: any) => sum + (item.pagesMemorized || 0), 0);
-          const presentDays = data.filter((item: any) => item.attendance === 'present').length;
-
-          return (
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{title}</Text>
-              <View style={styles.weeklyStatsContainer}>
-                <View style={styles.weeklyStatBadge}>
-                  <BookOpen size={12} color={colors.textSecondary} />
-                  <Text style={styles.weeklyStatText}>الحفظ: {totalPages} ص</Text>
-                </View>
-                <View style={styles.weeklyStatBadge}>
-                  <Calendar size={12} color={colors.textSecondary} />
-                  <Text style={styles.weeklyStatText}>الحضور: {presentDays} أيام</Text>
-                </View>
-              </View>
-            </View>
-          );
-        }}
         keyExtractor={(item) => item._id.toString()}
         contentContainerStyle={styles.list}
-        stickySectionHeadersEnabled={false}
         ListHeaderComponent={
           <View>
             {renderSummary()}
 
             <View style={styles.header}>
               <Text style={styles.headerTitle}>سجل المتابعة الأسبوعية</Text>
-              <Text style={styles.headerSubtitle}>ملخص أداء الطالب</Text>
             </View>
+
+            {/* Horizontal Tabs for Weeks */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.weekTabsContent}
+              style={styles.weekTabsScroll}
+            >
+              {(data?.sections || []).map((section: any, idx: number) => {
+                const total = data.sections.length;
+                const weekName = getArabicWeekName(total - idx);
+                const isActive = section.title === selectedWeekTitle;
+                return (
+                  <TouchableOpacity
+                    key={section.title}
+                    onPress={() => setSelectedWeekTitle(section.title)}
+                    style={[
+                      styles.weekTab,
+                      isActive && styles.weekTabActive
+                    ]}
+                  >
+                    <Text style={[
+                      styles.weekTabText,
+                      isActive && styles.weekTabTextActive
+                    ]}>
+                      {weekName}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Selected Week Info Card */}
+        {selectedWeekTitle && (
+  <View style={styles.weekInfoCard}>
+    <View style={styles.weekInfoLeft}>
+      <View style={styles.weekInfoLabelRow}>
+        <BookOpen size={14} color={colors.textMuted} />
+        <Text style={styles.weekInfoLbl}>مجموع الحصيلة</Text>
+      </View>
+      <View style={styles.weekInfoPagesRow}>
+        <Text style={styles.weekInfoPages}>{totalPages}</Text>
+        <Text style={styles.weekInfoUnit}>صفحة</Text>
+      </View>
+    </View>
+
+    <View style={styles.weekInfoDivider} />
+
+    <View style={styles.weekInfoRight}>
+      <Text style={styles.weekInfoTitle}>
+        {(() => {
+          const total = data?.sections?.length || 0;
+          const idx = (data?.sections || []).findIndex((s: any) => s.title === selectedWeekTitle);
+          return idx !== -1 ? getArabicWeekName(total - idx) : '';
+        })()}
+      </Text>
+      <Text style={styles.weekInfoDate}>{selectedWeekTitle}</Text>
+    </View>
+  </View>
+)}
           </View>
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>لا توجد سجلات متابعة بعد</Text>
+            <Text style={styles.emptyText}>لا توجد سجلات متابعة لهذا الأسبوع</Text>
           </View>
         }
       />
@@ -368,41 +383,41 @@ const getStyles = (colors: any, theme: string, typography: any) => StyleSheet.cr
     justifyContent: 'flex-end',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   dateText: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: typography.bold,
   },
   statsRow: {
     flexDirection: 'row-reverse',
     justifyContent: 'space-around',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 8,
   },
   mainStat: {
     alignItems: 'center',
   },
   pagesMemorized: {
     color: colors.success,
-    fontSize: 32,
+    fontSize: 30,
     fontFamily: typography.black,
   },
   pagesRequired: {
     color: colors.textSecondary,
-    fontSize: 32,
+    fontSize: 30,
     fontFamily: typography.black,
   },
   statLabel: {
     color: colors.textMuted,
     fontSize: 12,
     fontFamily: typography.semiBold,
-    marginTop: 4,
+    marginTop: 2,
   },
   divider: {
     width: 1,
-    height: 40,
+    height: 46,
     backgroundColor: colors.border,
   },
   statusRow: {
@@ -494,8 +509,8 @@ const getStyles = (colors: any, theme: string, typography: any) => StyleSheet.cr
   summaryContainer: {
     backgroundColor: colors.card,
     borderRadius: radius.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
     ...cardShadow(theme as 'light' | 'dark'),
@@ -503,7 +518,6 @@ const getStyles = (colors: any, theme: string, typography: any) => StyleSheet.cr
   statsGrid: {
     flexDirection: 'row-reverse',
     gap: 12,
-    marginBottom: 24,
   },
   statBox: {
     flex: 1,
@@ -533,6 +547,104 @@ const getStyles = (colors: any, theme: string, typography: any) => StyleSheet.cr
     fontFamily: typography.bold,
     textAlign: 'right',
   },
+  weekTabsScroll: {
+    marginVertical: spacing.md,
+    marginHorizontal: -20,
+  },
+  weekTabsContent: {
+    paddingHorizontal: 20,
+    gap: 8,
+    flexDirection: 'row-reverse',
+  },
+  weekTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f3f4f6',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  weekTabActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  weekTabText: {
+    fontSize: 13,
+    fontFamily: typography.semiBold,
+    color: colors.textSecondary,
+  },
+  weekTabTextActive: {
+    color: '#ffffff',
+    fontFamily: typography.bold,
+  },
+ weekInfoCard: {
+  flexDirection: 'row-reverse',
+  alignItems: 'center',
+  backgroundColor: colors.card,
+  borderRadius: radius.lg,
+  borderWidth: 1,
+  borderColor: colors.border,
+  paddingVertical: 16,
+  paddingHorizontal: 16,
+  marginBottom: spacing.md,
+  ...cardShadow(theme as 'light' | 'dark'),
+},
+weekInfoLeft: {
+  flex: 1,
+  paddingLeft: 16,
+  gap: 6,
+},
+weekInfoLabelRow: {
+  flexDirection: 'row-reverse',
+  alignItems: 'center',
+  gap: 2,
+},
+weekInfoPagesRow: {
+  flexDirection: 'row-reverse',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 4,
+},
+weekInfoPages: {
+  fontSize: 26,
+  fontFamily: typography.black,
+  color: colors.primary,
+},
+weekInfoUnit: {
+  fontSize: 13,
+  fontFamily: typography.semiBold,
+  color: colors.textMuted,
+},
+weekInfoLbl: {
+  fontSize: 11,
+  fontFamily: typography.bold,
+  color: colors.textMuted,
+  flex: 1,
+  paddingLeft: 16,
+  gap: 6,
+  alignItems: 'center',
+},
+weekInfoDivider: {
+  width: 1,
+  alignSelf: 'stretch',
+  backgroundColor: colors.border,
+},
+weekInfoRight: {
+  flex: 1,
+  paddingRight: 16,
+  alignItems: 'flex-end',
+  gap: 4,
+},
+weekInfoTitle: {
+  fontSize: 15,
+  fontFamily: typography.bold,
+  color: colors.text,
+},
+weekInfoDate: {
+  fontSize: 11,
+  fontFamily: typography.bold,
+  color: colors.textMuted,
+},
   chartContainer: {
     flexDirection: 'row-reverse',
     justifyContent: 'space-between',
@@ -565,4 +677,8 @@ const getStyles = (colors: any, theme: string, typography: any) => StyleSheet.cr
     fontSize: 10,
     marginTop: 4,
   },
+
+
+  
 });
+

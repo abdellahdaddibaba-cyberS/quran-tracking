@@ -108,7 +108,7 @@ export default function HomeScreen() {
   const renderStudent = ({ item, index }: { item: any, index: number }) => {
     const levelStyle = LEVEL_COLORS[item.level] || { border: colors.primary, bg: colors.primaryBg, text: colors.primary };
     const displayName = cleanStudentName(item.name, user?.fullName || '');
-    
+
     return (
       <Animated.View entering={FadeInDown.delay(index * 100).duration(600)}>
         <TouchableOpacity
@@ -121,29 +121,25 @@ export default function HomeScreen() {
           activeOpacity={0.8}
         >
           <View style={styles.cardHeader}>
-            <View style={styles.progressLinkContainer}>
-              <ChevronLeft size={16} color={colors.primary} />
-              <Text style={styles.progressLinkText}>تحصيل الابن</Text>
-            </View>
-            
+            {item.hasSwimmingToday ? (
+              <View style={styles.swimmingBadge}>
+                <Waves size={12} color="#0ea5e9" />
+                <Text style={styles.swimmingBadgeText}>سباحة اليوم</Text>
+              </View>
+            ) : (
+              <View />
+            )}
+
             <View style={styles.studentInfo}>
               <Text style={styles.studentName}>{displayName}</Text>
-              <View style={{ flexDirection: 'row-reverse', gap: 6, marginTop: 6, alignItems: 'center' }}>
-                <View style={[styles.levelBadge, { backgroundColor: levelStyle.bg, marginTop: 0 }]}>
-                  <Award size={13} color={levelStyle.border} />
-                  <Text style={[styles.studentLevel, { color: levelStyle.text }]}>
-                    {LEVEL_TRANSLATIONS[item.level] || item.level}
-                  </Text>
-                </View>
-                {item.hasSwimmingToday && (
-                  <View style={styles.swimmingBadge}>
-                    <Waves size={12} color="#0ea5e9" />
-                    <Text style={styles.swimmingBadgeText}>سباحة اليوم</Text>
-                  </View>
-                )}
+              <View style={[styles.levelBadge, { backgroundColor: levelStyle.bg, marginTop: 4 }]}>
+                <Award size={13} color={levelStyle.border} />
+                <Text style={[styles.studentLevel, { color: levelStyle.text }]}>
+                  {LEVEL_TRANSLATIONS[item.level] || item.level}
+                </Text>
               </View>
             </View>
-            
+
             <View style={[styles.avatar, { backgroundColor: levelStyle.border }]}>
               <Text style={styles.avatarText}>{displayName ? displayName[0] : 'أ'}</Text>
             </View>
@@ -154,23 +150,29 @@ export default function HomeScreen() {
               <View style={[styles.statIconWrapper, { backgroundColor: colors.successBg }]}>
                 <BookOpen size={16} color={colors.success} />
               </View>
-              <View>
+              <View style={{ alignItems: 'flex-end' }}>
                 <Text style={styles.statLabel}>السورة الحالية</Text>
                 <Text style={styles.statValue}>{item.currentSurah || item.startSurah || 'غير محدد'}</Text>
               </View>
             </View>
-            
+
             <View style={styles.statDivider} />
 
             <View style={styles.statContainer}>
               <View style={[styles.statIconWrapper, { backgroundColor: colors.goldBg }]}>
                 <Star size={16} color={colors.gold} />
               </View>
-              <View>
+              <View style={{ alignItems: 'flex-end' }}>
                 <Text style={styles.statLabel}>القسط اليومي</Text>
                 <Text style={styles.statValue}>{item.dailyTarget || 0} صفحات</Text>
               </View>
             </View>
+          </View>
+
+          {/* Bottom Action CTA */}
+          <View style={styles.cardActionRow}>
+            <Text style={styles.cardActionText}>عرض سجل المتابعة والتحصيل</Text>
+            <ChevronLeft size={16} color={colors.primary} />
           </View>
         </TouchableOpacity>
       </Animated.View>
@@ -422,16 +424,20 @@ const getStyles = (colors: any, theme: string, typography: any) => StyleSheet.cr
     flexDirection: 'row',
     alignItems: 'center',
   },
-  progressLinkContainer: {
-    flexDirection: 'row',
+  cardActionRow: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme === 'dark' ? 'rgba(29, 78, 216, 0.15)' : 'rgba(29, 78, 216, 0.08)',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
-    borderRadius: radius.sm + 2,
-    gap: spacing.xs,
+    backgroundColor: theme === 'dark' ? 'rgba(29, 78, 216, 0.12)' : 'rgba(29, 78, 216, 0.06)',
+    paddingVertical: 8,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md - 2,
+    marginTop: spacing.md,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: theme === 'dark' ? 'rgba(96, 165, 250, 0.15)' : 'rgba(29, 78, 216, 0.1)',
   },
-  progressLinkText: {
+  cardActionText: {
     fontSize: 12,
     fontFamily: typography.bold,
     color: colors.primary,
