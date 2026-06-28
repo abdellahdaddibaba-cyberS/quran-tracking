@@ -1,6 +1,9 @@
 const User = require('../models/User');
 const Student = require('../models/Student');
+const Feedback = require('../models/Feedback');
 const { sequelize } = require('../config/db');
+const { sendPushNotification } = require('../utils/notification');
+const { syncPushTokensFromSupabase } = require('../utils/syncPushTokens');
 
 const ALLOWED_ROLES = ['admin', 'teacher', 'parent'];
 const CREATE_FIELDS = ['username', 'password', 'fullName', 'role', 'phoneNumber', 'isActive'];
@@ -190,6 +193,56 @@ const getFeedbacks = async (req, res) => {
 };
 
 /**
+ * الإعجاب بملاحظة ولي الأمر وإرسال إشعار له
+ */
+const likeFeedback = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // رفع عدد الإعجابات بـ 1
+    const feedback = await Feedback.findByPk(id);
+    if (!feedback) {
+      return res.status(404).json({ success: false, message: 'الملاحظة غير موجودة' });
+    }
+
+    const newLikes = (feedback.likes || 0) + 1;
+    await feedback.update({ likes: newLikes });
+
+    // إرسال إشعار لولي الأمر
+    try {
+      await syncPushTokensFromSupabase();
+      const parent = await User.findByPk(feedback.userId, {
+        attributes: ['_id', 'fullName', 'pushToken']
+      });
+
+      if (parent && parent.pushToken) {
+        const TYPE_AR = {
+          suggestion: 'اقتراحك',
+          bug: 'بلاغ الخطأ',
+          complaint: 'شكواك',
+          other: 'ملاحظتك',
+        };
+        const typeLabel = TYPE_AR[feedback.type] || 'ملاحظتك';
+        const title = `👍 أُعجب المشرف بـ ${typeLabel}`;
+        const body = `تم الإعجاب برسالتك: "${String(feedback.message).slice(0, 60)}${feedback.message.length > 60 ? '...' : ''}" — عدد الإعجابات الآن: ${newLikes}`;
+
+        await sendPushNotification([parent.pushToken], title, body, {
+          type: 'feedback_like',
+          feedbackId: String(feedback._id),
+        });
+        console.log(`📲 تم إرسال إشعار الإعجاب لـ ${parent.fullName}`);
+      }
+    } catch (notifErr) {
+      console.error('فشل إرسال إشعار الإعجاب:', notifErr.message);
+    }
+
+    res.json({ success: true, likes: newLikes });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
  * تقرير تتبع دخول أولياء الأمور اليومي للبوابة
  */
 const getParentAccessReport = async (req, res) => {
@@ -320,4 +373,4 @@ const getParentAccessReport = async (req, res) => {
   }
 };
 
-module.exports = { getUsers, createUser, updateUser, deleteUser, getFeedbacks, getParentAccessReport };
+module.exports = { getUsers, createUser, updateUser, deleteUser, getFeedbacks, likeFeedback, getParentAccessReport };

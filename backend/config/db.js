@@ -58,6 +58,8 @@ const connectDB = async () => {
     await sequelize.query('CREATE INDEX IF NOT EXISTS "students_halaqaId" ON "students" ("halaqaId");');
     await sequelize.query('CREATE INDEX IF NOT EXISTS "students_parentId" ON "students" ("parentId");');
     await sequelize.query('CREATE INDEX IF NOT EXISTS "prizes_studentId" ON "prizes" ("studentId");');
+    // إضافة عمود likes لجدول feedbacks إن لم يكن موجوداً
+    await sequelize.query('ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS likes INTEGER DEFAULT 0;');
     console.log('⚡ تم التأكد من تهيئة الفهارس (Indexes) بنجاح');
   } catch (error) {
     console.error('❌ تعذر الاتصال بـ PostgreSQL:', error.message);

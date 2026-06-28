@@ -95,6 +95,7 @@ export const usersAPI = {
   update: (id, data)  => api.put(`/users/${id}`, data),
   delete: (id)        => api.delete(`/users/${id}`),
   getFeedback: ()     => api.get('/users/feedback'),
+  likeFeedback: (id)  => api.post(`/users/feedback/${id}/like`),
   getParentAccessReport: () => api.get('/users/parent-access-report'),
 };
 
