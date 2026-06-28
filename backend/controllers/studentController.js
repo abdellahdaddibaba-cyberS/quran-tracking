@@ -403,8 +403,8 @@ const checkAndSendQuranCompletionNotification = async (studentId, oldSurah, newS
         });
 
         if (parentUser && parentUser.pushToken) {
-          const title = `🎉 تهنئة ختم القرآن الكريم لـ ${studentWithParent.name}`;
-          const body = `🎉 يسرنا ويسعدنا أن نهنئكم بختم ابنكم البار ${studentWithParent.name} للقرآن الكريم كاملاً (أتمَّ اليوم حفظ سورة البقرة). نسأل الله أن يجعله من أهل القرآن الذين هم أهل الله وخاصته، وأن يلبسكم تاج الوقار يوم القيامة. مبارك لكم ولوالده ولهذا الإنجاز العظيم! 📖✨`;
+          const title = `🎉 تهنئة ختم القرآن لـ ${studentWithParent.name}`;
+          const body = `🎉 مبارك لكم! أتمَّ ابنكم البار ${studentWithParent.name} حفظ القرآن الكريم كاملاً بختمه لسورة البقرة اليوم. نسأل الله أن يجعله شفيعاً لكم ويلبسكم تاج الوقار. 📖✨`;
 
           await sendPushNotification([parentUser.pushToken], title, body, {
             studentId: studentWithParent._id,

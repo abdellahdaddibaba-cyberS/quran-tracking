@@ -81,20 +81,10 @@ async function sendParentNotificationsForRecords(processedRecords) {
 
   const studentMap = new Map(students.map((s) => [Number(s._id), s]));
 
-  // تجميع السجلات حسب الطالب لإرسال إشعار واحد مجمع في حال تم حفظ الأسبوع بأكمله دفعة واحدة
-  const recordsByStudent = new Map();
   for (const record of processedRecords) {
-    const sId = Number(record.studentId);
-    if (!recordsByStudent.has(sId)) {
-      recordsByStudent.set(sId, []);
-    }
-    recordsByStudent.get(sId).push(record);
-  }
-
-  for (const [studentId, studentRecords] of recordsByStudent.entries()) {
-    const student = studentMap.get(studentId);
+    const student = studentMap.get(Number(record.studentId));
     if (!student) {
-      summary.skipped.push({ studentId, reason: 'student_not_found' });
+      summary.skipped.push({ studentId: record.studentId, reason: 'student_not_found' });
       continue;
     }
     if (!student.parent) {
@@ -110,76 +100,25 @@ async function sendParentNotificationsForRecords(processedRecords) {
       continue;
     }
 
-    // ترتيب السجلات تصاعدياً حسب التاريخ
-    studentRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    let title = '';
+    let title = `متابعة التحصيل اليومي لـ ${student.name}`;
     let body = '';
 
-    if (studentRecords.length === 1) {
-      // إشعار يومي عادي منفرد
-      const record = studentRecords[0];
-      title = `متابعة التحصيل اليومي لـ ${student.name}`;
-
-      if (record.attendance === 'absent') {
-        body = `نحيطكم علمًا بتغيب ابنكم ${student.name} اليوم.`;
-      } else if (record.attendance === 'excused') {
-        body = `نحيطكم علمًا بتغيب ابنكم ${student.name} اليوم بعذر.`;
-      } else if (record.isSurahCompleted) {
-        body = `🎉 يسرنا إبلاغكم بأن ابنكم ${student.name} أتمَّ اليوم حفظ سورة كاملة، وحفظ ${record.pagesMemorized} صفحات. بارك الله فيه وزاده توفيقًا.`;
-      } else if (record.pagesMemorized > 0) {
-        body = `يسرنا إبلاغكم بأن ابنكم ${student.name} حفظ اليوم ${record.pagesMemorized} صفحات. نسأل الله له المزيد من التقدم والنجاح.`;
-      } else {
-        body = `يسرنا إبلاغكم بحضور ابنكم ${student.name} اليوم.`;
-      }
-
-      if (record.notes && record.notes.trim()) {
-        body += `\n📝 ملاحظة المعلم: ${record.notes.trim()}`;
-      }
+    if (record.attendance === 'absent') {
+      body = `نحيطكم علمًا بتغيب ابنكم ${student.name} اليوم.`;
+    } else if (record.attendance === 'excused') {
+      body = `نحيطكم علمًا بتغيب ابنكم ${student.name} اليوم بعذر.`;
+    } else if (record.isSurahCompleted) {
+      body = `🎉 يسرنا إبلاغكم بأن ابنكم ${student.name} أتمَّ اليوم حفظ سورة كاملة، وحفظ ${record.pagesMemorized} صفحات. بارك الله فيه وزاده توفيقًا.`;
+    } else if (record.pagesMemorized > 0) {
+      body = `يسرنا إبلاغكم بأن ابنكم ${student.name} حفظ اليوم ${record.pagesMemorized} صفحات. نسأل الله له المزيد من التقدم والنجاح.`;
     } else {
-      // تقرير مجمع لعدة أيام (حفظ بيانات الأسبوع)
-      title = `تقرير المتابعة لـ ${student.name}`;
-      body = `يسرنا إبلاغكم بتحديث سجل متابعة ابنكم ${student.name} للفترة المحددة:\n`;
-
-      const lines = studentRecords.map((record) => {
-        let datePart = '';
-        try {
-          const d = new Date(record.date);
-          const day = d.getDate();
-          const month = d.getMonth() + 1;
-          const dayName = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'][d.getDay()];
-          datePart = `${dayName} (${day}/${month})`;
-        } catch (e) {
-          datePart = record.date;
-        }
-
-        let statusText = '';
-        if (record.attendance === 'absent') {
-          statusText = 'غائب 🔴';
-        } else if (record.attendance === 'excused') {
-          statusText = 'غائب بعذر 🟡';
-        } else if (record.isSurahCompleted) {
-          statusText = `أتمَّ حفظ سورة كاملة وحفظ ${record.pagesMemorized} صفحات 🎉`;
-        } else if (record.pagesMemorized > 0) {
-          statusText = `حفظ ${record.pagesMemorized} صفحات 🟢`;
-        } else {
-          statusText = 'حاضر 🔵';
-        }
-
-        if (record.notes && record.notes.trim()) {
-          statusText += ` (${record.notes.trim()})`;
-        }
-
-        return `• ${datePart}: ${statusText}`;
-      });
-
-      body += lines.join('\n');
+      body = `يسرنا إبلاغكم بحضور ابنكم ${student.name} اليوم.`;
     }
 
     const result = await sendPushNotification([student.parent.pushToken], title, body, {
       studentId: student._id,
       type: 'daily_tracking',
-      date: studentRecords[studentRecords.length - 1].date,
+      date: record.date,
     });
 
     summary.sent += result.sent;
