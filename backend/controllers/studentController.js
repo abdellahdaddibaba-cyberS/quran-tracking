@@ -365,6 +365,61 @@ const createBulkStudents = async (req, res) => {
   }
 };
 
+// ─── دالة مساعدة للتحقق من ختم القرآن الكريم وإرسال التهنئة ───────────
+const checkAndSendQuranCompletionNotification = async (studentId, oldSurah, newSurah) => {
+  try {
+    if (!oldSurah || !newSurah) return;
+
+    const normalizeAr = (str) =>
+      String(str || '')
+        .replace(/^سوره?\s+/, '')
+        .replace(/[أإآا]/g, 'ا')
+        .replace(/ة/g, 'ه')
+        .replace(/ى/g, 'ي')
+        .replace(/[\u064B-\u065F\u0670ـ]/g, '')
+        .replace(/^ال/, '')
+        .replace(/\s+/g, '')
+        .trim();
+
+    const normOld = normalizeAr(oldSurah);
+    const normNew = normalizeAr(newSurah);
+
+    // التحقق مما انتقل الحفظ من سورة البقرة إلى سورة الفاتحة (وهو ما يعني ختم القرآن في الترتيب العكسي)
+    if (normOld === normalizeAr('البقرة') && normNew === normalizeAr('الفاتحة')) {
+      const studentWithParent = await Student.findByPk(studentId, {
+        include: [{
+          model: User,
+          as: 'parent',
+          attributes: ['_id', 'pushToken', 'fullName']
+        }]
+      });
+
+      if (studentWithParent && studentWithParent.parent && studentWithParent.parent.pushToken) {
+        await syncPushTokensFromSupabase();
+        
+        // جلب ولي الأمر مجدداً للتأكد من استخدام التوكن الجديد المحدث بعد المزامنة
+        const parentUser = await User.findByPk(studentWithParent.parent._id, {
+          attributes: ['pushToken']
+        });
+
+        if (parentUser && parentUser.pushToken) {
+          const title = `🎉 تهنئة ختم القرآن الكريم لـ ${studentWithParent.name}`;
+          const body = `🎉 يسرنا ويسعدنا أن نهنئكم بختم ابنكم البار ${studentWithParent.name} للقرآن الكريم كاملاً (أتمَّ اليوم حفظ سورة البقرة). نسأل الله أن يجعله من أهل القرآن الذين هم أهل الله وخاصته، وأن يلبسكم تاج الوقار يوم القيامة. مبارك لكم ولوالده ولهذا الإنجاز العظيم! 📖✨`;
+
+          await sendPushNotification([parentUser.pushToken], title, body, {
+            studentId: studentWithParent._id,
+            type: 'quran_completion',
+            date: new Date().toISOString().split('T')[0]
+          });
+          console.log(`📲 تم إرسال إشعار تهنئة الختم لولي أمر الطالب: ${studentWithParent.name}`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to send Quran completion notification:', error);
+  }
+};
+
 // ─── تعديل طالب ───────────────────────────────────────────────────
 const updateStudent = async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -375,6 +430,7 @@ const updateStudent = async (req, res) => {
       return res.status(404).json({ success: false, message: 'الطالب غير موجود' });
     }
 
+    const oldSurah = student.currentSurah || student.startSurah;
     const studentData = { ...req.body };
     let parentCreated = null;
 
@@ -397,6 +453,13 @@ const updateStudent = async (req, res) => {
 
     await student.update(studentData, { transaction });
     await transaction.commit();
+
+    const newSurah = studentData.currentSurah;
+    if (newSurah) {
+      checkAndSendQuranCompletionNotification(student._id, oldSurah, newSurah).catch(err => {
+        console.error('Error in checkAndSendQuranCompletionNotification background execution:', err);
+      });
+    }
 
     const updated = await Student.findByPk(student._id, {
       include: [
