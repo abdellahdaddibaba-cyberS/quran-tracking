@@ -575,40 +575,45 @@ export default function DailyInput() {
                   <tr key={st._id}>
                     <td style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
                     <td style={{ verticalAlign: 'middle' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{st.name}</span>
-                        <select
-                          value={st.currentSurah || st.startSurah || ''}
-                          onChange={(e) => handleSelectSurah(st._id, st.name, e.target.value)}
+                        {/* عرض السورة الحالية كشارة قابلة للضغط للتقدم */}
+                        <button
+                          onClick={() => handleAdvanceSurah(st._id, st.name, st.currentSurah || st.startSurah)}
+                          title="اضغط للانتقال إلى السورة التالية تصاعدياً"
                           style={{
-                            background: 'rgba(245,158,11,0.1)',
-                            color: 'var(--gold-400)',
-                            border: '1px solid rgba(245,158,11,0.2)',
-                            borderRadius: '4px',
-                            padding: '2px 6px',
-                            fontSize: '0.75rem',
-                            marginTop: '4px',
-                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: 'rgba(99,102,241,0.12)',
+                            border: '1px solid rgba(99,102,241,0.25)',
+                            borderRadius: '6px',
+                            padding: '3px 8px',
                             alignSelf: 'flex-start',
-                            fontWeight: 'bold',
-                            outline: 'none',
-                            maxWidth: '120px',
-                            textAlign: 'right',
-                            direction: 'rtl'
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            outline: 'none'
                           }}
-                          title="اختر السورة الحالية للطالب يدوياً"
+                          onMouseEnter={e => {
+                            e.currentTarget.style.background = 'rgba(99,102,241,0.28)';
+                            e.currentTarget.style.borderColor = 'rgba(99,102,241,0.55)';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.background = 'rgba(99,102,241,0.12)';
+                            e.currentTarget.style.borderColor = 'rgba(99,102,241,0.25)';
+                          }}
                         >
-                          <option value="" disabled style={{ background: 'var(--bg-card)', color: 'var(--text-muted)' }}>غير محدد</option>
-                          {SURAHS.map(surah => (
-                            <option 
-                              key={surah} 
-                              value={surah}
-                              style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}
-                            >
-                              {surah}
-                            </option>
-                          ))}
-                        </select>
+                          <span style={{ fontSize: '0.7rem', color: 'rgba(129,140,248,0.7)' }}>📖</span>
+                          <span style={{
+                            fontSize: '0.78rem',
+                            fontWeight: 800,
+                            color: '#a5b4fc',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {st.currentSurah || st.startSurah || 'غير محدد'}
+                          </span>
+                          <span style={{ fontSize: '0.6rem', color: 'rgba(129,140,248,0.5)', marginRight: '2px' }}>↑</span>
+                        </button>
                       </div>
                     </td>
                     <td style={{ textAlign: 'center' }}>

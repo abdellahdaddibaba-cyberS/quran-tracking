@@ -1,7 +1,7 @@
 const Student = require('../models/Student');
 const DailyTracking = require('../models/DailyTracking');
 const Halaqa = require('../models/Halaqa');
-const { isLlmConfigured, getLlmSuggestion } = require('../utils/llm');
+const { isLlmConfigured, getLlmSuggestion, getLlmHalaqaSuggestion } = require('../utils/llm');
 
 const LEVEL_LABELS = {
   level1: 'المستوى الأول',
@@ -202,4 +202,215 @@ const getSuggestion = async (req, res) => {
   }
 };
 
-module.exports = { getSuggestion };
+/**
+ * اقتراح القسط اليومي لحلقة كاملة (LLM مع fallback إحصائي)
+ */
+const getHalaqaSuggestion = async (req, res) => {
+  try {
+    const { halaqaId } = req.params;
+
+    const halaqa = await Halaqa.findByPk(halaqaId);
+    if (!halaqa) {
+      return res.status(404).json({ success: false, message: 'الحلقة غير موجودة' });
+    }
+
+    const students = await Student.findAll({
+      where: { halaqaId, isActive: true },
+      order: [['name', 'ASC']],
+    });
+
+    if (students.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          halaqaName: halaqa.name,
+          overallEvaluation: 'لا يوجد طلاب نشطين في هذه الحلقة لإجراء التقييم.',
+          students: [],
+          statsSummary: {
+            totalStudents: 0,
+            analyzedStudents: 0,
+            avgSuccessRate: null,
+            increaseCount: 0,
+            decreaseCount: 0,
+            keepCount: 0,
+            noDataCount: 0,
+          }
+        }
+      });
+    }
+
+    // 1. جلب سجلات التتبع وحساب الإحصائيات الفردية لكل طالب
+    const studentsAnalyses = [];
+    let totalSuccessRateSum = 0;
+    let successRateCount = 0;
+    let increaseCount = 0;
+    let decreaseCount = 0;
+    let keepCount = 0;
+    let noDataCount = 0;
+
+    for (const student of students) {
+      const lastRecords = await DailyTracking.findAll({
+        where: { studentId: student._id },
+        order: [['date', 'DESC']],
+        limit: 14,
+      });
+
+      const stats = computeStats(student, lastRecords);
+      const lastRecordsPayload = buildLastRecordsPayload(lastRecords);
+
+      if (stats.successRate !== null) {
+        totalSuccessRateSum += stats.successRate;
+        successRateCount++;
+      }
+
+      if (stats.status === 'increase') increaseCount++;
+      else if (stats.status === 'decrease') decreaseCount++;
+      else if (stats.status === 'keep') keepCount++;
+      else if (stats.status === 'no_data') noDataCount++;
+
+      studentsAnalyses.push({
+        studentId: student._id,
+        studentName: student.name,
+        level: LEVEL_LABELS[student.level] || student.level,
+        currentTarget: stats.currentTarget,
+        suggestedTarget: stats.suggestedTarget,
+        successRate: stats.successRate,
+        totalDays: stats.totalDays,
+        successDays: stats.successDays,
+        status: stats.status,
+        recommendation: stats.recommendation,
+        lastRecords: lastRecordsPayload,
+      });
+    }
+
+    const avgSuccessRate = successRateCount > 0 ? Math.round(totalSuccessRateSum / successRateCount) : null;
+
+    let overallEvaluation = '';
+    let source = 'fallback';
+
+    // 2. محاولة استخدام LLM للتقييم الجماعي والفردي
+    if (isLlmConfigured()) {
+      try {
+        // بناء السياق للـ LLM
+        const context = {
+          halaqa: {
+            name: halaqa.name,
+            supervisor: halaqa.supervisor,
+            description: halaqa.description || '',
+          },
+          metrics: {
+            totalStudents: students.length,
+            analyzedStudents: successRateCount,
+            avgSuccessRatePercent: avgSuccessRate,
+            increaseCount,
+            decreaseCount,
+            keepCount,
+            noDataCount,
+          },
+          students: studentsAnalyses.map(sa => ({
+            studentId: sa.studentId,
+            name: sa.studentName,
+            level: sa.level,
+            currentTarget: sa.currentTarget,
+            successRatePercent: sa.successRate,
+            status: sa.status,
+            totalDays: sa.totalDays,
+            successDays: sa.successDays,
+          }))
+        };
+
+        const llmResult = await getLlmHalaqaSuggestion(context);
+        
+        if (llmResult && llmResult.overallEvaluation) {
+          overallEvaluation = llmResult.overallEvaluation;
+          source = 'llm';
+
+          // تحديث التوصيات الفردية للطلاب بناءً على رد الـ LLM
+          if (Array.isArray(llmResult.students)) {
+            for (const sa of studentsAnalyses) {
+              const studentLlm = llmResult.students.find(s => Number(s.studentId) === Number(sa.studentId));
+              if (studentLlm) {
+                // معالجة القسط المقترح للتأكد من أنه عدد صالح ومحدود
+                const parsedTarget = Number.parseFloat(studentLlm.suggestedTarget);
+                const suggestedTarget = Number.isFinite(parsedTarget)
+                  ? Math.min(10, Math.max(0.5, parsedTarget))
+                  : sa.suggestedTarget;
+
+                const allowedStatus = ['increase', 'decrease', 'keep', 'no_data'];
+                const status = allowedStatus.includes(studentLlm.status) ? studentLlm.status : sa.status;
+
+                const recommendation = typeof studentLlm.recommendation === 'string' && studentLlm.recommendation.trim()
+                  ? studentLlm.recommendation.trim()
+                  : sa.recommendation;
+
+                sa.suggestedTarget = suggestedTarget;
+                sa.status = status;
+                sa.recommendation = recommendation;
+              }
+            }
+          }
+        }
+      } catch (llmError) {
+        console.error('LLM Halaqa suggestion failed, using statistical fallback:', llmError.message);
+        source = 'fallback';
+      }
+    }
+
+    // 3. التقييم الجماعي الافتراضي في حال عدم تفعيل الـ LLM أو فشله
+    if (!overallEvaluation) {
+      const parts = [
+        `تقرير الأداء لحلقة "${halaqa.name}" (بإشراف المعلم: ${halaqa.supervisor || 'غير محدد'}).`,
+        `نسبة الإنجاز العامة للحلقة تبلغ ${avgSuccessRate !== null ? `${avgSuccessRate}%` : 'غير متوفرة'}.`
+      ];
+
+      if (students.length > 0) {
+        parts.push(
+          `من بين ${students.length} طلاب تم تحليل أدائهم:`,
+          `- يُقترح رفع القسط لـ ${increaseCount} طلاب لتحسن مستواهم.`,
+          `- يُقترح تخفيض القسط لـ ${decreaseCount} طلاب لتيسير المراجعة والحفظ.`,
+          `- يُنصح بالإبقاء على الأقساط الحالية لـ ${keepCount} طلاب.`
+        );
+        if (noDataCount > 0) {
+          parts.push(`- هناك ${noDataCount} طلاب لا توجد لديهم بيانات كافية للتحليل.`);
+        }
+      }
+      overallEvaluation = parts.join(' ');
+    }
+
+    // إعادة فرز إحصائيات الحالة بناءً على التعديلات النهائية
+    let finalIncreaseCount = 0;
+    let finalDecreaseCount = 0;
+    let finalKeepCount = 0;
+    let finalNoDataCount = 0;
+    for (const sa of studentsAnalyses) {
+      if (sa.status === 'increase') finalIncreaseCount++;
+      else if (sa.status === 'decrease') finalDecreaseCount++;
+      else if (sa.status === 'keep') finalKeepCount++;
+      else if (sa.status === 'no_data') finalNoDataCount++;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        halaqaName: halaqa.name,
+        overallEvaluation,
+        students: studentsAnalyses,
+        statsSummary: {
+          totalStudents: students.length,
+          analyzedStudents: successRateCount,
+          avgSuccessRate,
+          increaseCount: finalIncreaseCount,
+          decreaseCount: finalDecreaseCount,
+          keepCount: finalKeepCount,
+          noDataCount: finalNoDataCount,
+        },
+        source,
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { getSuggestion, getHalaqaSuggestion };

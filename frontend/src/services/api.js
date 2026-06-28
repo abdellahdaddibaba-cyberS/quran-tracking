@@ -65,6 +65,7 @@ export const trackingAPI = {
 // ─── AI API ───────────────────────────────────────────────────────
 export const aiAPI = {
   getSuggestion: (studentId) => api.get(`/ai/suggest/${studentId}`),
+  getHalaqaSuggestion: (halaqaId) => api.get(`/ai/suggest/halaqa/${halaqaId}`),
 };
 
 // ─── Reports API ──────────────────────────────────────────────────

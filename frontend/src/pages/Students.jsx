@@ -945,12 +945,9 @@ export default function Students() {
                   </td>
                   <td><span className={`badge ${levelClass(s.level)}`}>{levelLabel(s.level)}</span></td>
                   <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>البداية: {s.startSurah}</span>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--gold-400)', fontWeight: 'bold' }}>
-                        الحالية: {s.currentSurah || s.startSurah || 'غير محدد'}
-                      </span>
-                    </div>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--gold-400)', fontWeight: 'bold' }}>
+                      {s.currentSurah || s.startSurah || 'غير محدد'}
+                    </span>
                   </td>
                   <td>
                     <input

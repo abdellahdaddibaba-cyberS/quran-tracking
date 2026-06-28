@@ -114,11 +114,11 @@ async function getLlmSuggestion(context) {
       role: 'system',
       content: [
         'أنت مستشار تربوي متخصص في تحفيظ القرآن الكريم.',
-        'حلّل أداء الطالب واقترح قسطاً يومياً مناسباً (عدد الصفحات).',
+        'حلّأ أداء الطالب واقترح قسطاً يومياً مناسباً (عدد الصفحات).',
         'أجب بJSON فقط بالحقول:',
         '{ "suggestedTarget": number, "status": "increase"|"decrease"|"keep", "recommendation": "نص عربي واضح للمعلم" }',
         'قواعد:',
-        '- suggestedTarget عدد صحيح من 1 إلى 10',
+        '- suggestedTarget عدد من 0.5 إلى 10',
         '- status = increase إذا الأداء ممتاز ومستقر، decrease إذا يتعثر، keep إذا الأداء مقبول',
         '- recommendation فقرة قصيرة بالعربية تشرح السبب وتذكر ملاحظات عملية',
       ].join('\n'),
@@ -144,7 +144,60 @@ async function getLlmSuggestion(context) {
   return parsed;
 }
 
+/**
+ * @param {object} context - سياق الحلقة وجميع طلابها
+ * @returns {Promise<object|null>}
+ */
+async function getLlmHalaqaSuggestion(context) {
+  if (!isLlmConfigured()) return null;
+
+  const messages = [
+    {
+      role: 'system',
+      content: [
+        'أنت مستشار تربوي متخصص في تحفيظ القرآن الكريم ومتابعة الحلقات القرآنيّة.',
+        'حلل أداء الحلقة القرآنيّة ككل وجميع طلابها واقترح التوجيهات المناسبة والقسط اليومي لكل طالب.',
+        'أجب بJSON فقط بالحقول التالية:',
+        '{',
+        '  "overallEvaluation": "نص التقييم العام والشامل لأداء الحلقة وتوجيهات للمشرف",',
+        '  "students": [',
+        '    {',
+        '      "studentId": number,',
+        '      "suggestedTarget": number,',
+        '      "status": "increase"|"decrease"|"keep"|"no_data",',
+        '      "recommendation": "نص توصية فردي واضح وموجز للمعلم يخص هذا الطالب"',
+        '    }',
+        '  ]',
+        '}',
+        'قواعد التقييم لكل طالب:',
+        '- suggestedTarget عدد من 0.5 إلى 10',
+        '- status = increase إذا الأداء ممتاز ومستقر، decrease إذا يتعثر، keep إذا الأداء مقبول، no_data إذا كانت البيانات غير كافية للتقييم',
+        '- recommendation فقرة قصيرة بالعربية تشرح السبب وتذكر ملاحظات عملية',
+      ].join('\n'),
+    },
+    {
+      role: 'user',
+      content: JSON.stringify(context, null, 2),
+    },
+  ];
+
+  let raw;
+  if (process.env.GEMINI_API_KEY) {
+    raw = await callGemini(messages);
+  } else {
+    raw = await callOpenAICompatible(messages);
+  }
+
+  const parsed = extractJsonObject(raw);
+  if (!parsed) {
+    throw new Error('LLM returned invalid JSON for Halaqa suggestion');
+  }
+
+  return parsed;
+}
+
 module.exports = {
   isLlmConfigured,
   getLlmSuggestion,
+  getLlmHalaqaSuggestion,
 };
