@@ -198,39 +198,114 @@ const getFeedbacks = async (req, res) => {
 const likeFeedback = async (req, res) => {
   try {
     const { id } = req.params;
+    let feedbackUserId;
+    let feedbackType;
+    let feedbackMessage;
+    let newLikes;
 
-    // رفع عدد الإعجابات بـ 1
-    const feedback = await Feedback.findByPk(id);
-    if (!feedback) {
-      return res.status(404).json({ success: false, message: 'الملاحظة غير موجودة' });
+    if (process.env.SUPABASE_DB_URL) {
+      const { Client } = require('pg');
+      const supabaseClient = new Client({
+        connectionString: process.env.SUPABASE_DB_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+      await supabaseClient.connect();
+      try {
+        // 1. Fetch from Supabase
+        const feedbackRes = await supabaseClient.query(
+          `SELECT * FROM feedbacks WHERE _id = $1`,
+          [id]
+        );
+        if (feedbackRes.rows.length === 0) {
+          return res.status(404).json({ success: false, message: 'الملاحظة غير موجودة' });
+        }
+        const feedback = feedbackRes.rows[0];
+        feedbackUserId = feedback.userId;
+        feedbackType = feedback.type;
+        feedbackMessage = feedback.message;
+        newLikes = (feedback.likes || 0) + 1;
+
+        // 2. Update Supabase
+        await supabaseClient.query(
+          `UPDATE feedbacks SET likes = $1, "updatedAt" = NOW() WHERE _id = $2`,
+          [newLikes, id]
+        );
+
+        // 3. Try to update locally if it exists to keep in sync and prevent overwrite
+        try {
+          const localFeedback = await Feedback.findByPk(id);
+          if (localFeedback) {
+            await localFeedback.update({ likes: newLikes });
+          }
+        } catch (localErr) {
+          console.warn('⚠️ تنبيه: تعذر تحديث الإعجاب محلياً:', localErr.message);
+        }
+      } finally {
+        await supabaseClient.end().catch(() => {});
+      }
+    } else {
+      // Local database
+      const feedback = await Feedback.findByPk(id);
+      if (!feedback) {
+        return res.status(404).json({ success: false, message: 'الملاحظة غير موجودة' });
+      }
+      feedbackUserId = feedback.userId;
+      feedbackType = feedback.type;
+      feedbackMessage = feedback.message;
+      newLikes = (feedback.likes || 0) + 1;
+      await feedback.update({ likes: newLikes });
     }
-
-    const newLikes = (feedback.likes || 0) + 1;
-    await feedback.update({ likes: newLikes });
 
     // إرسال إشعار لولي الأمر
     try {
-      await syncPushTokensFromSupabase();
-      const parent = await User.findByPk(feedback.userId, {
-        attributes: ['_id', 'fullName', 'pushToken']
-      });
+      let pushToken = null;
+      let parentName = '';
 
-      if (parent && parent.pushToken) {
+      if (process.env.SUPABASE_DB_URL) {
+        const { Client } = require('pg');
+        const supabaseClient = new Client({
+          connectionString: process.env.SUPABASE_DB_URL,
+          ssl: { rejectUnauthorized: false }
+        });
+        await supabaseClient.connect();
+        try {
+          const userRes = await supabaseClient.query(
+            `SELECT "fullName", "pushToken" FROM users WHERE _id = $1`,
+            [feedbackUserId]
+          );
+          if (userRes.rows.length > 0) {
+            pushToken = userRes.rows[0].pushToken;
+            parentName = userRes.rows[0].fullName;
+          }
+        } finally {
+          await supabaseClient.end().catch(() => {});
+        }
+      } else {
+        const parent = await User.findByPk(feedbackUserId, {
+          attributes: ['_id', 'fullName', 'pushToken']
+        });
+        if (parent) {
+          pushToken = parent.pushToken;
+          parentName = parent.fullName;
+        }
+      }
+
+      if (pushToken) {
         const TYPE_AR = {
           suggestion: 'اقتراحك',
           bug: 'بلاغ الخطأ',
           complaint: 'شكواك',
           other: 'ملاحظتك',
         };
-        const typeLabel = TYPE_AR[feedback.type] || 'ملاحظتك';
+        const typeLabel = TYPE_AR[feedbackType] || 'ملاحظتك';
         const title = `👍 أُعجب المشرف بـ ${typeLabel}`;
-        const body = `تم الإعجاب برسالتك: "${String(feedback.message).slice(0, 60)}${feedback.message.length > 60 ? '...' : ''}" — عدد الإعجابات الآن: ${newLikes}`;
+        const body = `تم الإعجاب برسالتك: "${String(feedbackMessage).slice(0, 60)}${feedbackMessage.length > 60 ? '...' : ''}" — عدد الإعجابات الآن: ${newLikes}`;
 
-        await sendPushNotification([parent.pushToken], title, body, {
+        await sendPushNotification([pushToken], title, body, {
           type: 'feedback_like',
-          feedbackId: String(feedback._id),
+          feedbackId: String(id),
         });
-        console.log(`📲 تم إرسال إشعار الإعجاب لـ ${parent.fullName}`);
+        console.log(`📲 تم إرسال إشعار الإعجاب لـ ${parentName}`);
       }
     } catch (notifErr) {
       console.error('فشل إرسال إشعار الإعجاب:', notifErr.message);
