@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 import * as Updates from 'expo-updates';
 
 /**
- * يتحقق من تحديثات EAS (OTA) عند فتح التطبيق — بدون إعادة بناء كاملة
+ * يتحقق من تحديثات EAS (OTA) عند فتح التطبيق
  */
 export function useAppUpdates() {
   useEffect(() => {
@@ -13,8 +13,18 @@ export function useAppUpdates() {
       try {
         const result = await Updates.checkForUpdateAsync();
         if (result.isAvailable) {
-          await Updates.fetchUpdateAsync();
-          await Updates.reloadAsync();
+          Alert.alert(
+            'تحديث جديد 🚀',
+            'يوجد تحديث جديد للتطبيق، سيتم تنزيله وإعادة تشغيل التطبيق لتطبيقه الآن.',
+            [{ text: 'موافق', onPress: async () => {
+              try {
+                await Updates.fetchUpdateAsync();
+                await Updates.reloadAsync();
+              } catch (err) {
+                console.warn('Failed to fetch/apply update:', err);
+              }
+            }}]
+          );
         }
       } catch (error) {
         console.warn('OTA update check failed:', error);
