@@ -36,6 +36,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-updates",
       [
         "expo-splash-screen",
         {
@@ -76,7 +77,9 @@
     },
     "owner": "abdellahdaddis-organization",
     "updates": {
-      "url": "https://u.expo.dev/0d9685bc-48ed-4b29-80e0-3d1493ef896d"
+      "url": "https://u.expo.dev/0d9685bc-48ed-4b29-80e0-3d1493ef896d",
+      "checkAutomatically": "ON_LOAD",
+      "enabled": true
     }
   }
 }
