@@ -148,12 +148,13 @@ const bulkInsertTracking = async (req, res) => {
       isLate: record.isLate || false,
       individualSession: record.individualSession || false,
       isSurahCompleted: record.isSurahCompleted || false,
+      currentSurah: record.currentSurah || null,
     }));
 
     const recordsToNotify = await filterRecordsNeedingNotification(processedRecords);
 
     const result = await DailyTracking.bulkCreate(processedRecords, {
-      updateOnDuplicate: ['pagesRequired', 'pagesMemorized', 'notes', 'attendance', 'isLate', 'individualSession', 'isSurahCompleted', 'updatedAt'],
+      updateOnDuplicate: ['pagesRequired', 'pagesMemorized', 'notes', 'attendance', 'isLate', 'individualSession', 'isSurahCompleted', 'currentSurah', 'updatedAt'],
     });
 
     let notifications = { sent: 0, skipped: [], errors: [], unchanged: processedRecords.length - recordsToNotify.length };
@@ -308,10 +309,17 @@ const getAllTrackingRange = async (req, res) => {
 const getHalaqaCumulativeTotals = async (req, res) => {
   try {
     const { halaqaId } = req.params;
+    const { endDate } = req.query;
 
-    // جلب كل سجلات الطلاب الفعّالين في هذه الحلقة (بدون قيد تاريخ)
+    const where = {};
+    if (endDate) {
+      where.date = { [Op.lte]: endDate };
+    }
+
+    // جلب كل سجلات الطلاب الفعّالين في هذه الحلقة
     const records = await DailyTracking.findAll({
       attributes: ['studentId', 'pagesMemorized', 'attendance'],
+      where,
       include: [{
         model: Student,
         as: 'student',

@@ -59,7 +59,7 @@ const getStudentById = async (req, res) => {
 const extractFatherName = (studentName) => {
   if (!studentName || !String(studentName).trim()) return '';
   const name = String(studentName).trim();
-  
+
   // 1. التحقق مما إذا كان الاسم يحتوي على " بن " أو " ابن "
   const binRegex = /\s+(?:بن|ابن)\s+/i;
   if (binRegex.test(name)) {
@@ -75,7 +75,7 @@ const extractFatherName = (studentName) => {
     // التحقق مما إذا كان الاسم الأول مركباً (مثل "عبد الرحمن"، "أبو بكر"، "صلاح الدين")
     const isCompoundStart = parts[0] === 'عبد' || parts[0] === 'أبو' || parts[0] === 'ابو' || parts[0] === 'أم' || parts[0] === 'ام';
     const isCompoundEnd = parts[1] === 'الدين' || parts[1] === 'الله' || parts[1] === 'الاسلام' || parts[1] === 'الزهراء';
-    
+
     if ((isCompoundStart || isCompoundEnd) && parts.length > 2) {
       return parts.slice(2).join(' ').trim();
     }
@@ -217,8 +217,8 @@ const createStudent = async (req, res) => {
       ]
     });
 
-    res.status(201).json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       data: populated,
       parentCreated: parentCreated ? {
         fullName: parentCreated.fullName,
@@ -317,11 +317,11 @@ const createBulkStudents = async (req, res) => {
             let finalUsername = username;
             let isUnique = false;
             let counter = 0;
-            
+
             while (!isUnique) {
               const checkName = counter === 0 ? finalUsername : `${finalUsername}_${counter}`;
               const isTaken = parentCache.some(p => p.username === checkName) ||
-                              await User.findOne({ where: { username: checkName }, transaction });
+                await User.findOne({ where: { username: checkName }, transaction });
               if (!isTaken) {
                 finalUsername = checkName;
                 isUnique = true;
@@ -396,15 +396,15 @@ const checkAndSendQuranCompletionNotification = async (studentId, oldSurah, newS
 
       if (studentWithParent && studentWithParent.parent && studentWithParent.parent.pushToken) {
         await syncPushTokensFromSupabase();
-        
+
         // جلب ولي الأمر مجدداً للتأكد من استخدام التوكن الجديد المحدث بعد المزامنة
         const parentUser = await User.findByPk(studentWithParent.parent._id, {
           attributes: ['pushToken']
         });
 
         if (parentUser && parentUser.pushToken) {
-          const title = `🎉 تهنئة ختم القرآن لـ ${studentWithParent.name}`;
-          const body = `🎉 مبارك لكم! أتمَّ ابنكم البار ${studentWithParent.name} حفظ القرآن الكريم كاملاً بختمه لسورة البقرة اليوم. نسأل الله أن يجعله شفيعاً لكم ويلبسكم تاج الوقار. 📖✨`;
+          const title = `🎉 تهنئة ختم القرآن الكريم لـ ${studentWithParent.name}`;
+          const body = `🎉 يسرنا ويسعدنا أن نهنئكم بختم ابنكم البار ${studentWithParent.name} للقرآن الكريم كاملاً (أتمَّ اليوم حفظ سورة البقرة). نسأل الله أن يجعله من أهل القرآن الذين هم أهل الله وخاصته، وأن يلبسكم تاج الوقار يوم القيامة. مبارك لكم ولوالده ولهذا الإنجاز العظيم! 📖✨`;
 
           await sendPushNotification([parentUser.pushToken], title, body, {
             studentId: studentWithParent._id,
@@ -476,8 +476,8 @@ const updateStudent = async (req, res) => {
       ]
     });
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: updated,
       parentCreated: parentCreated ? {
         fullName: parentCreated.fullName,
@@ -629,7 +629,7 @@ const getSwimmingSchedule = async (req, res) => {
 
       for (const student of students) {
         const studentTrackings = trackingMap.get(student._id) || [];
-        
+
         let memorizedSum = 0;
         let surahCompletions = 0;
 

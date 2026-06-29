@@ -4,6 +4,15 @@ import 'react-native-reanimated';
 import { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Cairo_400Regular, Cairo_600SemiBold, Cairo_700Bold, Cairo_900Black } from '@expo-google-fonts/cairo';
+import { I18nManager } from 'react-native';
+
+// Force LTR to prevent flipped layouts on Arabic system language
+try {
+  I18nManager.allowRTL(false);
+  I18nManager.forceRTL(false);
+} catch (e) {
+  console.warn('Failed to force LTR:', e);
+}
 
 import '../services/notificationService';
 import { AuthProvider, useAuth } from '../context/AuthContext';

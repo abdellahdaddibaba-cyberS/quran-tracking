@@ -150,7 +150,8 @@ export default function DailyInput() {
               pages: '',
               attendance: '',
               isLate: false,
-              isSurahCompleted: false
+              isSurahCompleted: false,
+              currentSurah: ''
             };
           });
         });
@@ -164,6 +165,7 @@ export default function DailyInput() {
               attendance: record.attendance || '',
               isLate: record.isLate || false,
               isSurahCompleted: record.isSurahCompleted || false,
+              currentSurah: record.currentSurah || '',
               notes: record.notes || ''
             };
           }
@@ -338,6 +340,7 @@ export default function DailyInput() {
               attendance: cellData.attendance,
               isLate: cellData.isLate,
               isSurahCompleted: cellData.isSurahCompleted || false,
+              currentSurah: cellData.currentSurah || '',
               notes: cellData.notes || ''
             });
           }
@@ -660,7 +663,10 @@ export default function DailyInput() {
                                 const nextVal = !cellData.isSurahCompleted;
                                 updateCell(st._id, day.dateStr, 'isSurahCompleted', nextVal);
                                 if (nextVal) {
+                                  updateCell(st._id, day.dateStr, 'currentSurah', st.currentSurah || st.startSurah || '');
                                   handleAdvanceSurah(st._id, st.name, st.currentSurah || st.startSurah);
+                                } else {
+                                  updateCell(st._id, day.dateStr, 'currentSurah', '');
                                 }
                               }}
                               style={{

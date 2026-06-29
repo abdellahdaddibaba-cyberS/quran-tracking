@@ -59,6 +59,10 @@ const DailyTracking = sequelize.define('DailyTracking', {
     type: DataTypes.BOOLEAN,
     defaultValue: false
   },
+  currentSurah: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   rewarded: {
     type: DataTypes.BOOLEAN,
     defaultValue: false

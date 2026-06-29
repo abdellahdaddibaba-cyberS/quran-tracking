@@ -59,7 +59,7 @@ export const trackingAPI = {
   getByHalaqa:          (halaqaId, params)  => api.get(`/tracking/halaqa/${halaqaId}`, { params }),
   deleteHalaqaDay:      (halaqaId, date)    => api.delete(`/tracking/halaqa/${halaqaId}`, { params: { date } }),
   getAllRange:           (params)            => api.get('/tracking/all', { params }),
-  getHalaqaCumulative:  (halaqaId)          => api.get(`/tracking/halaqa/${halaqaId}/cumulative`),
+  getHalaqaCumulative:  (halaqaId, params)          => api.get(`/tracking/halaqa/${halaqaId}/cumulative`, { params }),
 };
 
 // ─── AI API ───────────────────────────────────────────────────────

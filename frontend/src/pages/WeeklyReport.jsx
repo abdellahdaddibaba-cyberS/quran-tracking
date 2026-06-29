@@ -153,7 +153,7 @@ export default function WeeklyReport({ user }) {
           const [sRes, tRes, cumRes] = await Promise.all([
             studentsAPI.getByHalaqa(selectedHalaqa),
             trackingAPI.getByHalaqa(selectedHalaqa, { startDate, endDate }),
-            trackingAPI.getHalaqaCumulative(selectedHalaqa),
+            trackingAPI.getHalaqaCumulative(selectedHalaqa, { endDate }),
           ]);
           fetchedStudents = sRes.data.data;
           fetchedTracking = tRes.data.data;
@@ -209,7 +209,7 @@ export default function WeeklyReport({ user }) {
         halaqatAPI.getAll(),
         studentsAPI.getAll(),
         trackingAPI.getAllRange({ startDate, endDate }),
-        trackingAPI.getAllRange({ startDate: '2000-01-01', endDate: '2099-12-31' }) // جلب كل التاريخ للتراكمي
+        trackingAPI.getAllRange({ startDate: '2000-01-01', endDate: endDate }) // جلب كل التاريخ للتراكمي حتى نهاية هذا الأسبوع
       ]);
 
       const allHalaqat = hRes.data.data;
@@ -425,7 +425,7 @@ export default function WeeklyReport({ user }) {
         views: [{ rightToLeft: true, showGridLines: false }]
       });
 
-      studentsSheet.mergeCells('A1:G2');
+      studentsSheet.mergeCells('A1:H2');
       const stHeader = studentsSheet.getCell('A1');
       stHeader.value = 'إحصائيات ومجموع إنجاز جميع الطلبة';
       stHeader.font = { name: 'Arial', bold: true, size: 20, color: { argb: 'FFFFFFFF' } };
@@ -443,6 +443,7 @@ export default function WeeklyReport({ user }) {
         { header: 'المستوى', key: 'level', width: 15 },
         { header: 'المطلوب أسبوعياً', key: 'req', width: 20 },
         { header: 'المجموع الأسبوعي', key: 'total', width: 20 },
+        { header: 'التحصيل التراكمي', key: 'cumulative', width: 20 },
         { header: 'النسبة', key: 'pct', width: 15 }
       ];
       studentsSheet.columns = stColumns.map(col => ({ key: col.key, width: col.width }));
@@ -476,12 +477,18 @@ export default function WeeklyReport({ user }) {
         const sReq = (st.dailyTarget || 0) * weekDays.length;
         const sPct = sReq > 0 ? Math.round((sTotal / sReq) * 100) : 0;
 
+        // حساب الإنجاز التراكمي من التاريخ الكامل
+        const sFullTotal = fullHistory
+          .filter(r => (r.studentId?._id === st._id || r.studentId === st._id))
+          .reduce((sum, r) => sum + r.pagesMemorized, 0);
+
         studentsData.push({
           name: st.name,
           halaqa: halaqaName,
           level: levelLabel[st.level] || st.level,
           req: sReq,
           total: sTotal,
+          cumulative: sFullTotal,
           pct: sPct
         });
       });
@@ -496,6 +503,7 @@ export default function WeeklyReport({ user }) {
           level: st.level,
           req: st.req,
           total: st.total,
+          cumulative: st.cumulative,
           pct: `${st.pct}%`
         });
         row.height = 30;
@@ -514,6 +522,10 @@ export default function WeeklyReport({ user }) {
              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
           }
           if (colNumber === 7) { 
+             cell.font = { bold: true, color: { argb: 'FF4F46E5' }, size: 11 };
+             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E7FF' } };
+          }
+          if (colNumber === 8) { 
              const p = st.pct;
              cell.font = { bold: true, color: { argb: p >= 80 ? 'FF065F46' : p >= 50 ? 'FFB45309' : 'FFB91C1C' } };
              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
@@ -521,18 +533,63 @@ export default function WeeklyReport({ user }) {
         });
       });
 
+      // 7. صف الإجمالي الكلي للأسابيع (Grand Total Row)
+      const totalReqSum = studentsData.reduce((sum, st) => sum + st.req, 0);
+      const totalActualSum = studentsData.reduce((sum, st) => sum + st.total, 0);
+      const totalCumulativeSum = studentsData.reduce((sum, st) => sum + st.cumulative, 0);
+      const overallPct = totalReqSum > 0 ? Math.round((totalActualSum / totalReqSum) * 100) : 0;
+
+      const totalRow = studentsSheet.addRow({
+        idx: 'الإجمالي الكلي',
+        name: '',
+        halaqa: '',
+        level: '',
+        req: totalReqSum,
+        total: totalActualSum,
+        cumulative: totalCumulativeSum,
+        pct: `${overallPct}%`
+      });
+      totalRow.height = 35;
+
+      // تنسيق جميع خلايا صف الإجمالي
+      for (let col = 1; col <= 8; col++) {
+        const cell = totalRow.getCell(col);
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+          top: { style: 'medium', color: { argb: 'FF374151' } },
+          bottom: { style: 'medium', color: { argb: 'FF374151' } },
+          left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          right: { style: 'thin', color: { argb: 'FFE5E7EB' } }
+        };
+      }
+
+      // دمج أول أربعة خلايا لـ "الإجمالي الكلي"
+      studentsSheet.mergeCells(`A${totalRow.number}:D${totalRow.number}`);
+
+      const mergedCell = totalRow.getCell(1);
+      mergedCell.font = { name: 'Arial', bold: true, size: 12, color: { argb: 'FF065F46' } };
+      mergedCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+
+      const reqCell = totalRow.getCell(5);
+      reqCell.font = { name: 'Arial', bold: true, size: 11, color: { argb: 'FF374151' } };
+      reqCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+
+      const actualCell = totalRow.getCell(6);
+      actualCell.font = { name: 'Arial', bold: true, size: 11, color: { argb: 'FF065F46' } };
+      actualCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+
+      const cumulativeCell = totalRow.getCell(7);
+      cumulativeCell.font = { name: 'Arial', bold: true, size: 11, color: { argb: 'FF4F46E5' } };
+      cumulativeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E7FF' } };
+
+      const pctCell = totalRow.getCell(8);
+      pctCell.font = { name: 'Arial', bold: true, size: 11, color: { argb: overallPct >= 80 ? 'FF065F46' : overallPct >= 50 ? 'FFB45309' : 'FFB91C1C' } };
+      pctCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
-      // طريقة يدوية قوية للتحميل لضمان الاسم والامتداد
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Weekly_Report_${startDate}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      saveAs(blob, `Weekly_Report_${startDate}.xlsx`);
 
       toast.success('تم تصدير التقرير بنجاح 💎', { id: toastId });
     } catch (err) {

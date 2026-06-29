@@ -3,6 +3,7 @@
     "name": "تحصيلي",
     "slug": "qurantrackingannour",
     "version": "1.0.2",
+    "supportsRTL": false,
     "orientation": "portrait",
     "icon": "./assets/images/square logo.png",
     "scheme": "mobile",

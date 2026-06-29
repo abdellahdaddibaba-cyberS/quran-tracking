@@ -53,7 +53,7 @@ export default function StudentDetailScreen() {
 
       // Group records by week (Week 1: Sun-Thu, other weeks: Sat-Thu)
       const records = res.data.data.tracking || [];
-      const groups: Record<string, any[]> = {};
+      const groups: Record<number, { title: string; weekNumber: number; data: any[] }> = {};
 
       records.forEach((record: any) => {
         const dateParts = record.date.split('T')[0].split('-');
@@ -69,10 +69,12 @@ export default function StudentDetailScreen() {
 
         let weekStart: Date;
         let weekEnd: Date;
+        let weekNumber = 1;
 
         if (dateStr < '2026-06-20') {
           weekStart = new Date(2026, 5, 14);
           weekEnd = new Date(2026, 5, 18);
+          weekNumber = 1;
         } else {
           const day = d.getDay();
           const diffToSat = (day + 1) % 7;
@@ -81,18 +83,27 @@ export default function StudentDetailScreen() {
 
           weekEnd = new Date(weekStart);
           weekEnd.setDate(weekStart.getDate() + 5);
+
+          const startW2 = new Date(2026, 5, 20); // 20 June 2026
+          const wStartMid = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate());
+          const diffTime = wStartMid.getTime() - startW2.getTime();
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          weekNumber = 2 + Math.floor(diffDays / 7);
         }
 
         const weekLabel = `من ${weekStart.toLocaleDateString('ar-DZ', { month: 'short', day: 'numeric' })} إلى ${weekEnd.toLocaleDateString('ar-DZ', { month: 'short', day: 'numeric' })}`;
 
-        if (!groups[weekLabel]) groups[weekLabel] = [];
-        groups[weekLabel].push(record);
+        if (!groups[weekNumber]) {
+          groups[weekNumber] = {
+            title: weekLabel,
+            weekNumber: weekNumber,
+            data: []
+          };
+        }
+        groups[weekNumber].data.push(record);
       });
 
-      const sections = Object.keys(groups).map(key => ({
-        title: key,
-        data: groups[key]
-      }));
+      const sections = Object.values(groups).sort((a: any, b: any) => b.weekNumber - a.weekNumber);
 
       setData({ ...res.data.data, sections });
 
@@ -239,9 +250,8 @@ export default function StudentDetailScreen() {
               contentContainerStyle={styles.weekTabsContent}
               style={styles.weekTabsScroll}
             >
-              {(data?.sections || []).map((section: any, idx: number) => {
-                const total = data.sections.length;
-                const weekName = getArabicWeekName(total - idx);
+              {(data?.sections || []).map((section: any) => {
+                const weekName = getArabicWeekName(section.weekNumber);
                 const isActive = section.title === selectedWeekTitle;
                 return (
                   <TouchableOpacity
@@ -264,33 +274,32 @@ export default function StudentDetailScreen() {
             </ScrollView>
 
             {/* Selected Week Info Card */}
-        {selectedWeekTitle && (
-  <View style={styles.weekInfoCard}>
-    <View style={styles.weekInfoLeft}>
-      <View style={styles.weekInfoLabelRow}>
-        <BookOpen size={14} color={colors.textMuted} />
-        <Text style={styles.weekInfoLbl}>مجموع الحصيلة</Text>
-      </View>
-      <View style={styles.weekInfoPagesRow}>
-        <Text style={styles.weekInfoPages}>{totalPages}</Text>
-        <Text style={styles.weekInfoUnit}>صفحة</Text>
-      </View>
-    </View>
+            {selectedWeekTitle && (
+              <View style={styles.weekInfoCard}>
+                <View style={styles.weekInfoLeft}>
+                  <View style={styles.weekInfoLabelRow}>
+                    <BookOpen size={14} color={colors.textMuted} />
+                    <Text style={styles.weekInfoLbl}>مجموع الحصيلة</Text>
+                  </View>
+                  <View style={styles.weekInfoPagesRow}>
+                    <Text style={styles.weekInfoPages}>{totalPages}</Text>
+                    <Text style={styles.weekInfoUnit}>صفحة</Text>
+                  </View>
+                </View>
 
-    <View style={styles.weekInfoDivider} />
+                <View style={styles.weekInfoDivider} />
 
-    <View style={styles.weekInfoRight}>
-      <Text style={styles.weekInfoTitle}>
-        {(() => {
-          const total = data?.sections?.length || 0;
-          const idx = (data?.sections || []).findIndex((s: any) => s.title === selectedWeekTitle);
-          return idx !== -1 ? getArabicWeekName(total - idx) : '';
-        })()}
-      </Text>
-      <Text style={styles.weekInfoDate}>{selectedWeekTitle}</Text>
-    </View>
-  </View>
-)}
+                <View style={styles.weekInfoRight}>
+                  <Text style={styles.weekInfoTitle}>
+                    {(() => {
+                      const section = (data?.sections || []).find((s: any) => s.title === selectedWeekTitle);
+                      return section ? getArabicWeekName(section.weekNumber) : '';
+                    })()}
+                  </Text>
+                  <Text style={styles.weekInfoDate}>{selectedWeekTitle}</Text>
+                </View>
+              </View>
+            )}
           </View>
         }
         ListEmptyComponent={
@@ -577,74 +586,74 @@ const getStyles = (colors: any, theme: string, typography: any) => StyleSheet.cr
     color: '#ffffff',
     fontFamily: typography.bold,
   },
- weekInfoCard: {
-  flexDirection: 'row-reverse',
-  alignItems: 'center',
-  backgroundColor: colors.card,
-  borderRadius: radius.lg,
-  borderWidth: 1,
-  borderColor: colors.border,
-  paddingVertical: 16,
-  paddingHorizontal: 16,
-  marginBottom: spacing.md,
-  ...cardShadow(theme as 'light' | 'dark'),
-},
-weekInfoLeft: {
-  flex: 1,
-  paddingLeft: 16,
-  gap: 6,
-},
-weekInfoLabelRow: {
-  flexDirection: 'row-reverse',
-  alignItems: 'center',
-  gap: 2,
-},
-weekInfoPagesRow: {
-  flexDirection: 'row-reverse',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 4,
-},
-weekInfoPages: {
-  fontSize: 26,
-  fontFamily: typography.black,
-  color: colors.primary,
-},
-weekInfoUnit: {
-  fontSize: 13,
-  fontFamily: typography.semiBold,
-  color: colors.textMuted,
-},
-weekInfoLbl: {
-  fontSize: 11,
-  fontFamily: typography.bold,
-  color: colors.textMuted,
-  flex: 1,
-  paddingLeft: 16,
-  gap: 6,
-  alignItems: 'center',
-},
-weekInfoDivider: {
-  width: 1,
-  alignSelf: 'stretch',
-  backgroundColor: colors.border,
-},
-weekInfoRight: {
-  flex: 1,
-  paddingRight: 16,
-  alignItems: 'flex-end',
-  gap: 4,
-},
-weekInfoTitle: {
-  fontSize: 15,
-  fontFamily: typography.bold,
-  color: colors.text,
-},
-weekInfoDate: {
-  fontSize: 11,
-  fontFamily: typography.bold,
-  color: colors.textMuted,
-},
+  weekInfoCard: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    marginBottom: spacing.md,
+    ...cardShadow(theme as 'light' | 'dark'),
+  },
+  weekInfoLeft: {
+    flex: 1,
+    paddingLeft: 16,
+    gap: 6,
+  },
+  weekInfoLabelRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 2,
+  },
+  weekInfoPagesRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  weekInfoPages: {
+    fontSize: 26,
+    fontFamily: typography.black,
+    color: colors.primary,
+  },
+  weekInfoUnit: {
+    fontSize: 13,
+    fontFamily: typography.semiBold,
+    color: colors.textMuted,
+  },
+  weekInfoLbl: {
+    fontSize: 11,
+    fontFamily: typography.bold,
+    color: colors.textMuted,
+    flex: 1,
+    paddingLeft: 16,
+    gap: 6,
+    alignItems: 'center',
+  },
+  weekInfoDivider: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: colors.border,
+  },
+  weekInfoRight: {
+    flex: 1,
+    paddingRight: 16,
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  weekInfoTitle: {
+    fontSize: 15,
+    fontFamily: typography.bold,
+    color: colors.text,
+  },
+  weekInfoDate: {
+    fontSize: 11,
+    fontFamily: typography.bold,
+    color: colors.textMuted,
+  },
   chartContainer: {
     flexDirection: 'row-reverse',
     justifyContent: 'space-between',
@@ -679,6 +688,6 @@ weekInfoDate: {
   },
 
 
-  
+
 });
 
