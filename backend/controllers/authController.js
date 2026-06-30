@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const LoginLog = require('../models/LoginLog');
+const PasswordChangeLog = require('../models/PasswordChangeLog');
 const jwt = require('jsonwebtoken');
 const { Expo } = require('expo-server-sdk');
 const { Op } = require('sequelize');
@@ -114,6 +115,7 @@ const updateProfile = async (req, res) => {
     if (req.body.username) {
       user.username = req.body.username;
     }
+    let passwordChanged = false;
     if (req.body.password) {
       if (!req.body.oldPassword) {
         return res.status(400).json({ success: false, message: 'يرجى إدخال كلمة المرور القديمة' });
@@ -123,12 +125,28 @@ const updateProfile = async (req, res) => {
         return res.status(401).json({ success: false, message: 'كلمة المرور القديمة غير صحيحة' });
       }
       user.password = req.body.password;
+      passwordChanged = true;
     }
     if (req.body.fullName) {
       user.fullName = req.body.fullName;
     }
 
     await user.save();
+
+    // تسجيل عملية تغيير كلمة السر في السجل
+    if (passwordChanged) {
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+      const userAgent = req.headers['user-agent'];
+      await PasswordChangeLog.create({
+        userId: user._id,
+        username: user.username,
+        fullName: user.fullName,
+        ipAddress: ip,
+        userAgent: userAgent,
+        changedAt: new Date(),
+      });
+      console.log(`🔑 تغيير كلمة السر: ${user.fullName} (${user.username}) - ${ip}`);
+    }
     
     const { password, ...userWithoutPassword } = user.toJSON();
     res.json({ success: true, data: userWithoutPassword });
@@ -145,6 +163,21 @@ const getLoginLogs = async (req, res) => {
     const logs = await LoginLog.findAll({
       order: [['createdAt', 'DESC']],
       limit: 100
+    });
+    res.json({ success: true, data: logs });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * جلب سجلات تغيير كلمة السر (للأدمن فقط)
+ */
+const getPasswordChangeLogs = async (req, res) => {
+  try {
+    const logs = await PasswordChangeLog.findAll({
+      order: [['changedAt', 'DESC']],
+      limit: 200
     });
     res.json({ success: true, data: logs });
   } catch (error) {
@@ -196,4 +229,4 @@ const savePushToken = async (req, res) => {
   }
 };
 
-module.exports = { login, getMe, getLoginLogs, updateProfile, savePushToken };
+module.exports = { login, getMe, getLoginLogs, updateProfile, savePushToken, getPasswordChangeLogs };

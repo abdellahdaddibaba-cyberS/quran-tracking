@@ -20,6 +20,7 @@ import FeedbackReport from './pages/FeedbackReport';
 import SwimmingManagement from './pages/SwimmingManagement';
 import WeeklySwimming from './pages/WeeklySwimming';
 import ParentAccessReport from './pages/ParentAccessReport';
+import PasswordChangeReport from './pages/PasswordChangeReport';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
@@ -86,6 +87,7 @@ export default function App() {
             <Route path="/users" element={<Users />} />
             <Route path="/feedback"         element={<FeedbackReport />} />
             <Route path="/parent-access"    element={<ParentAccessReport />} />
+            <Route path="/password-changes" element={<PasswordChangeReport />} />
             <Route path="/swimming"         element={<SwimmingManagement />} />
             <Route path="/swimming/weekly"  element={<WeeklySwimming />} />
             <Route path="*"                element={<Navigate to="/" />} />

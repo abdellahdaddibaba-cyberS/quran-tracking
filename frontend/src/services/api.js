@@ -84,9 +84,10 @@ export const reportsAPI = {
 
 // ─── Auth & Users API ─────────────────────────────────────────────
 export const authAPI = {
-  login: (data) => api.post('/auth/login', data),
-  getMe: ()     => api.get('/auth/me'),
-  getLogs: ()   => api.get('/auth/logs'),
+  login: (data)              => api.post('/auth/login', data),
+  getMe: ()                  => api.get('/auth/me'),
+  getLogs: ()                => api.get('/auth/logs'),
+  getPasswordChangeLogs: ()  => api.get('/auth/password-change-logs'),
 };
 
 export const usersAPI = {
