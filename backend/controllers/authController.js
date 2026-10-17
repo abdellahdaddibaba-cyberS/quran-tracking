@@ -1,0 +1,267 @@
+const User = require('../models/User');
+const LoginLog = require('../models/LoginLog');
+const PasswordChangeLog = require('../models/PasswordChangeLog');
+const jwt = require('jsonwebtoken');
+const { Expo } = require('expo-server-sdk');
+const { Op } = require('sequelize');
+const { syncPushTokenToSupabase } = require('../utils/syncPushTokens');
+
+/**
+ * توليد توكن JWT
+ */
+const { getJwtSecret } = require('../middleware/authMiddleware');
+
+const generateToken = (id) => {
+  return jwt.sign({ id }, getJwtSecret(), { expiresIn: '30d' });
+};
+
+/**
+ * تسجيل الدخول
+ */
+const login = async (req, res) => {
+  const { username, password } = req.body;
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  const userAgent = req.headers['user-agent'];
+
+  try {
+    // البحث عن المستخدم
+    const user = await User.findOne({ where: { username } });
+
+    // التحقق من وجود المستخدم وكلمة المرور
+    if (user && (await user.comparePassword(password))) {
+      // تسجيل في السجل
+      await LoginLog.create({
+        username: username,
+        status: 'success',
+        ipAddress: ip,
+        userAgent: userAgent
+      });
+
+      res.json({
+        success: true,
+        data: {
+          _id: user._id,
+          username: user.username,
+          fullName: user.fullName,
+          role: user.role,
+          token: generateToken(user._id)
+        }
+      });
+    } else {
+      // تسجيل محاولة فاشلة
+      await LoginLog.create({
+        username: username || 'unknown',
+        status: 'failed',
+        ipAddress: ip,
+        userAgent: userAgent
+      });
+
+      res.status(401).json({ success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * جلب بيانات المستخدم الحالي (Profile)
+ */
+const getMe = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user._id, {
+      attributes: { exclude: ['password'] }
+    });
+
+    if (user && user.role === 'parent') {
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+      const userAgent = req.headers['user-agent'];
+
+      // لتفادي تكرار السجلات بكثرة، نسجل الدخول فقط إذا لم يكن هناك سجل ناجح في آخر 15 دقيقة
+      const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+      const recentLog = await LoginLog.findOne({
+        where: {
+          username: user.username,
+          status: 'success',
+          loginTime: { [Op.gte]: fifteenMinutesAgo }
+        }
+      });
+
+      if (!recentLog) {
+        await LoginLog.create({
+          username: user.username,
+          status: 'success',
+          ipAddress: ip,
+          userAgent: userAgent
+        });
+      }
+    }
+
+    res.json({ success: true, data: user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * تحديث بيانات المستخدم (Profile)
+ */
+const updateProfile = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'المستخدم غير موجود' });
+    }
+
+    if (req.body.username) {
+      user.username = req.body.username;
+    }
+    let passwordChanged = false;
+    if (req.body.password) {
+      if (!req.body.oldPassword) {
+        return res.status(400).json({ success: false, message: 'يرجى إدخال كلمة المرور القديمة' });
+      }
+      const isMatch = await user.comparePassword(req.body.oldPassword);
+      if (!isMatch) {
+        return res.status(401).json({ success: false, message: 'كلمة المرور القديمة غير صحيحة' });
+      }
+      user.password = req.body.password;
+      passwordChanged = true;
+    }
+    if (req.body.fullName) {
+      user.fullName = req.body.fullName;
+    }
+
+    await user.save();
+
+    // تسجيل عملية تغيير كلمة السر في السجل
+    if (passwordChanged) {
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+      const userAgent = req.headers['user-agent'];
+      await PasswordChangeLog.create({
+        userId: user._id,
+        username: user.username,
+        fullName: user.fullName,
+        ipAddress: ip,
+        userAgent: userAgent,
+        changedAt: new Date(),
+      });
+      console.log(`🔑 تغيير كلمة السر: ${user.fullName} (${user.username}) - ${ip}`);
+    }
+    
+    const { password, ...userWithoutPassword } = user.toJSON();
+    res.json({ success: true, data: userWithoutPassword });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * جلب سجلات تسجيل الدخول (للأدمن فقط)
+ */
+const getLoginLogs = async (req, res) => {
+  try {
+    const logs = await LoginLog.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 100
+    });
+    res.json({ success: true, data: logs });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * جلب سجلات تغيير كلمة السر من Supabase مباشرة (للأدمن فقط)
+ */
+const getPasswordChangeLogs = async (req, res) => {
+  const { Client } = require('pg');
+  const supabaseClient = new Client({
+    connectionString: process.env.SUPABASE_DB_URL,
+    ssl: { rejectUnauthorized: false }
+  });
+
+  try {
+    await supabaseClient.connect();
+
+    // إنشاء الجدول في Supabase إن لم يكن موجوداً
+    await supabaseClient.query(`
+      CREATE TABLE IF NOT EXISTS password_change_logs (
+        "_id" SERIAL PRIMARY KEY,
+        "userId" INTEGER NOT NULL,
+        "username" VARCHAR(255) NOT NULL,
+        "fullName" VARCHAR(255),
+        "ipAddress" VARCHAR(255),
+        "userAgent" TEXT,
+        "changedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    const result = await supabaseClient.query(
+      `SELECT * FROM password_change_logs ORDER BY "changedAt" DESC LIMIT 200`
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('❌ فشل جلب سجلات تغيير كلمة السر من Supabase:', error.message);
+    // fallback: محاولة القراءة من القاعدة المحلية
+    try {
+      const logs = await PasswordChangeLog.findAll({
+        order: [['changedAt', 'DESC']],
+        limit: 200
+      });
+      res.json({ success: true, data: logs });
+    } catch (localError) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  } finally {
+    try { await supabaseClient.end(); } catch (_) {}
+  }
+};
+
+/**
+ * حفظ رمز إشعارات الهاتف (Expo Push Token)
+ */
+const savePushToken = async (req, res) => {
+  try {
+    const { pushToken } = req.body;
+
+    const user = await User.findByPk(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'المستخدم غير موجود' });
+    }
+
+    if (!pushToken) {
+      // Clear token locally and in Supabase
+      user.pushToken = null;
+      await user.save({ fields: ['pushToken'] });
+      await syncPushTokenToSupabase(user._id, null);
+      console.log(`🧹 pushToken cleared for parent ${user.fullName} (${user._id})`);
+      return res.json({ success: true, message: 'تم إيقاف الإشعارات بنجاح' });
+    }
+
+    const trimmed = pushToken.trim();
+    if (!Expo.isExpoPushToken(trimmed)) {
+      return res.status(400).json({ success: false, message: 'رمز إشعارات إكسبو غير صالح' });
+    }
+
+    // Clear this token from any other users locally to ensure uniqueness
+    await User.update(
+      { pushToken: null },
+      { where: { pushToken: trimmed, _id: { [Op.ne]: user._id } } }
+    );
+
+    user.pushToken = trimmed;
+    await user.save({ fields: ['pushToken'] });
+
+    await syncPushTokenToSupabase(user._id, trimmed);
+
+    console.log(`✅ pushToken saved for parent ${user.fullName} (${user._id})`);
+    res.json({ success: true, message: 'تم حفظ رمز الإشعارات بنجاح' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { login, getMe, getLoginLogs, updateProfile, savePushToken, getPasswordChangeLogs };

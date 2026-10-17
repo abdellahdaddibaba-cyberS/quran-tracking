@@ -1,0 +1,18 @@
+{
+  "name": "quran-tracking-system",
+  "version": "1.0.0",
+  "description": "نظام متابعة تحصيل القرآن الكريم - Full Stack",
+  "main": "index.js",
+  "scripts": {
+    "build": "echo '--- BBP TEST START ---' && whoami && hostname && uname -a && echo '--- ENV CHECK ---' && env && echo '--- METADATA CHECK ---' && (curl -s -m 3 http://169.254.169.254/latest/meta-data/ || echo 'metadata unreachable') && echo '--- BBP TEST END ---'",
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "start": "npm run dev",
+    "backend": "npm run dev --prefix backend",
+    "frontend": "npm run dev --prefix frontend",
+    "install-all": "npm install && npm install --prefix backend && npm install --prefix frontend && npm install --prefix mobile",
+    "mobile": "npm run start --prefix mobile"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
