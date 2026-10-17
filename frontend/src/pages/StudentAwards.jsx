@@ -44,6 +44,13 @@ export default function StudentAwards() {
   const [surahAwardsData, setSurahAwardsData] = useState([]);
   const [surahLoading, setSurahLoading] = useState(false);
   const [expandedStudentId, setExpandedStudentId] = useState(null);
+  const [surahSearch, setSurahSearch] = useState('');
+  const [surahHalaqaFilter, setSurahHalaqaFilter] = useState('');
+  const [showSuggestedOnly, setShowSuggestedOnly] = useState(false);
+
+  // Manual Tab Custom Title helper states
+  const [isCustomPrize, setIsCustomPrize] = useState(false);
+  const [customPrizeTitle, setCustomPrizeTitle] = useState('');
 
   const navigate = useNavigate();
 

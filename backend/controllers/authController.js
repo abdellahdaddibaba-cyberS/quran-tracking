@@ -171,17 +171,52 @@ const getLoginLogs = async (req, res) => {
 };
 
 /**
- * جلب سجلات تغيير كلمة السر (للأدمن فقط)
+ * جلب سجلات تغيير كلمة السر من Supabase مباشرة (للأدمن فقط)
  */
 const getPasswordChangeLogs = async (req, res) => {
+  const { Client } = require('pg');
+  const supabaseClient = new Client({
+    connectionString: process.env.SUPABASE_DB_URL,
+    ssl: { rejectUnauthorized: false }
+  });
+
   try {
-    const logs = await PasswordChangeLog.findAll({
-      order: [['changedAt', 'DESC']],
-      limit: 200
-    });
-    res.json({ success: true, data: logs });
+    await supabaseClient.connect();
+
+    // إنشاء الجدول في Supabase إن لم يكن موجوداً
+    await supabaseClient.query(`
+      CREATE TABLE IF NOT EXISTS password_change_logs (
+        "_id" SERIAL PRIMARY KEY,
+        "userId" INTEGER NOT NULL,
+        "username" VARCHAR(255) NOT NULL,
+        "fullName" VARCHAR(255),
+        "ipAddress" VARCHAR(255),
+        "userAgent" TEXT,
+        "changedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    const result = await supabaseClient.query(
+      `SELECT * FROM password_change_logs ORDER BY "changedAt" DESC LIMIT 200`
+    );
+
+    res.json({ success: true, data: result.rows });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error('❌ فشل جلب سجلات تغيير كلمة السر من Supabase:', error.message);
+    // fallback: محاولة القراءة من القاعدة المحلية
+    try {
+      const logs = await PasswordChangeLog.findAll({
+        order: [['changedAt', 'DESC']],
+        limit: 200
+      });
+      res.json({ success: true, data: logs });
+    } catch (localError) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  } finally {
+    try { await supabaseClient.end(); } catch (_) {}
   }
 };
 

@@ -599,25 +599,21 @@ const getSurahPerformanceAwards = async (req, res) => {
       const N = matches.length;
       const P = prizeCounts[student._id] || 0;
 
-      if (N >= 2) {
-        const eligibleCount = Math.floor(N / 2);
-        const pendingCount = eligibleCount - P;
+      const eligibleCount = Math.floor(N / 2);
+      const pendingCount = Math.max(0, eligibleCount - P);
 
-        if (pendingCount > 0) {
-          eligibleStudents.push({
-            _id: student._id,
-            name: student.name,
-            halaqaName: student.halaqa?.name || '—',
-            excellentSurahCount: N,
-            awardsGivenCount: P,
-            pendingAwardsCount: pendingCount,
-            matchingRecords: matches.map(m => ({
-              date: m.date,
-              notes: m.notes
-            }))
-          });
-        }
-      }
+      eligibleStudents.push({
+        _id: student._id,
+        name: student.name,
+        halaqaName: student.halaqa?.name || '—',
+        excellentSurahCount: N,
+        awardsGivenCount: P,
+        pendingAwardsCount: pendingCount,
+        matchingRecords: matches.map(m => ({
+          date: m.date,
+          notes: m.notes
+        }))
+      });
     });
 
     res.json({

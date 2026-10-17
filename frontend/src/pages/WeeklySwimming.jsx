@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { studentsAPI } from '../services/api';
-import { Waves, ChevronLeft, ChevronRight, Users, Calendar } from 'lucide-react';
+import { Waves, ChevronLeft, ChevronRight, Users, Calendar, FileSpreadsheet } from 'lucide-react';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
+import toast from 'react-hot-toast';
 
 function getWeekStart(date) {
   const d = new Date(date);
@@ -70,24 +73,171 @@ export default function WeeklySwimming() {
 
   const totalSwimmers = saturdayStudents.length;
 
+  const handleExportExcel = async () => {
+    if (filteredStudents.length === 0) {
+      toast.error('لا يوجد طلاب لتصديرهم');
+      return;
+    }
+    const toastId = toast.loading('جاري تصدير ملف الإكسل...');
+    try {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'نظام متابعة التحصيل';
+
+      const worksheet = workbook.addWorksheet('جدول السباحة الأسبوعي', {
+        views: [{ rightToLeft: true, showGridLines: true }]
+      });
+
+      // Colors
+      const colors = {
+        skyBlue: 'FF0EA5E9',
+        lightSky: 'FFE0F2FE',
+        grayBg: 'FFF9FAFB',
+        textDark: 'FF1F2937',
+        border: 'FFE5E7EB',
+        halaqaBg: 'FFE0F2FE',
+        halaqaText: 'FF0369A1'
+      };
+
+      // 1. Title Block
+      worksheet.mergeCells('A1:C2');
+      const titleCell = worksheet.getCell('A1');
+      titleCell.value = `قائمة طلاب السباحة ليوم: ${formatSaturdayDate(weekStart)}`;
+      titleCell.font = { name: 'Arial', bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.skyBlue } };
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      worksheet.getRow(1).height = 25;
+      worksheet.getRow(2).height = 25;
+
+      worksheet.addRow([]); // Spacer row
+
+      // 2. Table Headers
+      const columns = [
+        { header: '#', key: 'idx', width: 8 },
+        { header: 'اسم الطالب', key: 'name', width: 40 },
+        { header: 'المستوى', key: 'level', width: 25 }
+      ];
+
+      worksheet.columns = columns.map(col => ({ key: col.key, width: col.width }));
+
+      const headerRow = worksheet.getRow(4);
+      headerRow.values = columns.map(c => c.header);
+      headerRow.height = 30;
+      headerRow.eachCell((cell) => {
+        cell.font = { name: 'Arial', bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF374151' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF374151' } },
+          bottom: { style: 'medium', color: { argb: colors.skyBlue } },
+          left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          right: { style: 'thin', color: { argb: 'FFE5E7EB' } }
+        };
+      });
+
+      // Group students by Halaqa
+      const groups = {};
+      filteredStudents.forEach(st => {
+        const hName = st.halaqa?.name || st.halaqaId || 'غير محدد';
+        if (!groups[hName]) {
+          groups[hName] = [];
+        }
+        groups[hName].push(st);
+      });
+
+      const levelNames = {
+        level1: 'المستوى الأول',
+        level2: 'المستوى الثاني',
+        level3: 'المستوى الثالث',
+        level4: 'المستوى الرابع'
+      };
+
+      // 3. Add Data grouped by Halaqa
+      Object.entries(groups).forEach(([halaqaName, groupStudents]) => {
+        // Add Halaqa Banner Row
+        const bannerRow = worksheet.addRow([]);
+        bannerRow.height = 28;
+        worksheet.mergeCells(`A${bannerRow.number}:C${bannerRow.number}`);
+        const bannerCell = bannerRow.getCell(1);
+        bannerCell.value = `📌 حلقة: ${halaqaName} (${groupStudents.length} طلاب)`;
+        bannerCell.font = { name: 'Arial', bold: true, size: 12, color: { argb: colors.halaqaText } };
+        bannerCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.halaqaBg } };
+        bannerCell.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
+        bannerCell.border = {
+          top: { style: 'thin', color: { argb: colors.border } },
+          bottom: { style: 'thin', color: { argb: colors.border } },
+          left: { style: 'thin', color: { argb: colors.border } },
+          right: { style: 'thin', color: { argb: colors.border } }
+        };
+
+        // Add students in this Halaqa
+        groupStudents.sort((a, b) => a.name.localeCompare(b.name, 'ar')).forEach((st, i) => {
+          const row = worksheet.addRow({
+            idx: i + 1,
+            name: st.name,
+            level: levelNames[st.level] || st.level || '—'
+          });
+          row.height = 25;
+          row.eachCell((cell, colIndex) => {
+            cell.alignment = { vertical: 'middle', horizontal: colIndex === 2 ? 'right' : 'center' };
+            cell.font = { name: 'Arial', size: 10, color: { argb: colors.textDark } };
+            cell.border = {
+              bottom: { style: 'thin', color: { argb: colors.border } },
+              left: { style: 'thin', color: { argb: colors.border } },
+              right: { style: 'thin', color: { argb: colors.border } }
+            };
+
+            // Alternate row coloring
+            if (i % 2 === 1) {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+            }
+          });
+        });
+        
+        // Add a spacer row between halaqat
+        worksheet.addRow([]);
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      saveAs(blob, `Swimming_Schedule_${weekStart}.xlsx`);
+
+      toast.success('تم تصدير جدول السباحة بنجاح 🏊‍♂️', { id: toastId });
+    } catch (err) {
+      console.error(err);
+      toast.error('حدث خطأ أثناء تصدير ملف الإكسل', { id: toastId });
+    }
+  };
+
   return (
     <div className="page-container">
       {/* ─── Header ─────────────────────────────────────────── */}
-      <div className="page-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 10,
-            background: 'rgba(14,165,233,0.15)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}>
-            <Waves size={20} color="#0ea5e9" />
+      <div className="page-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: 10,
+              background: 'rgba(14,165,233,0.15)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <Waves size={20} color="#0ea5e9" />
+            </div>
+            <div>
+              <h2 className="page-title" style={{ margin: 0 }}>الجدول الأسبوعي للسباحة</h2>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                قائمة الطلبة المعنيين بالسباحة ليوم السبت
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="page-title" style={{ margin: 0 }}>الجدول الأسبوعي للسباحة</h2>
-            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              قائمة الطلبة المعنيين بالسباحة ليوم السبت
-            </p>
-          </div>
+          {totalSwimmers > 0 && (
+            <button
+              className="btn btn-secondary"
+              onClick={handleExportExcel}
+              style={{ gap: '0.5rem', display: 'flex', alignItems: 'center' }}
+            >
+              <FileSpreadsheet size={16} />
+              تصدير جدول السباحة (Excel)
+            </button>
+          )}
         </div>
 
         {/* Week Navigator */}
@@ -174,7 +324,7 @@ export default function WeeklySwimming() {
               <tr style={{ background: 'rgba(14,165,233,0.08)', borderBottom: '2px solid rgba(14,165,233,0.15)' }}>
                 <th style={{ padding: '0.85rem 1rem', textAlign: 'center', fontWeight: 700, color: '#0ea5e9', width: 55 }}>#</th>
                 <th style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700, color: 'var(--text)' }}>اسم الطالب</th>
-                <th style={{ padding: '0.85rem 1rem', textAlign: 'center', fontWeight: 700, color: 'var(--text)', width: 140 }}>رقم الحلقة</th>
+                <th style={{ padding: '0.85rem 1rem', textAlign: 'center', fontWeight: 700, color: 'var(--text)', width: 140 }}>الحلقة</th>
               </tr>
             </thead>
             <tbody>
@@ -209,7 +359,7 @@ export default function WeeklySwimming() {
                       🏊‍♂️ {st.name}
                     </td>
                     <td style={{ padding: '0.75rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                      {st.halaqaId || '—'}
+                      {st.halaqa?.name || st.halaqaId || '—'}
                     </td>
                   </tr>
                 ))

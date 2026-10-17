@@ -681,7 +681,12 @@ const getWeeklySwimmingSchedule = async (req, res) => {
       include: [{
         model: Student,
         as: 'student',
-        attributes: ['_id', 'name', 'halaqaId']
+        attributes: ['_id', 'name', 'halaqaId', 'level'],
+        include: [{
+          model: Halaqa,
+          as: 'halaqa',
+          attributes: ['name']
+        }]
       }],
       order: [['date', 'ASC']]
     });

@@ -23,7 +23,8 @@ const TABLES_TO_SYNC = [
   { name: 'prizes', primaryKey: 'id' },
   { name: 'feedbacks', primaryKey: '_id' },
   { name: 'swimming_schedules', primaryKey: '_id' },
-  { name: 'login_logs', primaryKey: '_id' }
+  { name: 'login_logs', primaryKey: '_id' },
+  { name: 'password_change_logs', primaryKey: '_id' }
 ];
 
 /**
@@ -136,6 +137,19 @@ async function runSync() {
         );
       `);
       await supabaseClient.query(`
+        CREATE TABLE IF NOT EXISTS password_change_logs (
+          "_id" SERIAL PRIMARY KEY,
+          "userId" INTEGER NOT NULL,
+          "username" VARCHAR(255) NOT NULL,
+          "fullName" VARCHAR(255),
+          "ipAddress" VARCHAR(255),
+          "userAgent" TEXT,
+          "changedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL
+        );
+      `);
+      await supabaseClient.query(`
         CREATE TABLE IF NOT EXISTS prizes (
           "id" SERIAL PRIMARY KEY,
           "studentId" INTEGER NOT NULL,
@@ -163,7 +177,7 @@ async function runSync() {
       const tableName = table.name;
       const primaryKey = table.primaryKey;
 
-      if (tableName === 'feedbacks' || tableName === 'login_logs') {
+      if (tableName === 'feedbacks' || tableName === 'login_logs' || tableName === 'password_change_logs') {
         console.log(`• الجدول "${tableName}": تم تخطي مرحلة الحذف للحفاظ على السجلات المتلقاة على السحابة.`);
         continue;
       }
@@ -214,13 +228,51 @@ async function runSync() {
         continue;
       }
 
+      // التحقق من وجود عمود updatedAt وجلب السجلات من Supabase لتجنب تكرار المزامنة غير الضرورية
+      const hasUpdatedAt = columns.includes('updatedAt');
+      const supabaseMap = new Map();
+
+      if (hasUpdatedAt) {
+        try {
+          const supabaseRes = await supabaseClient.query(
+            `SELECT "${primaryKey}", "updatedAt" FROM "${tableName}"`
+          );
+          for (const r of supabaseRes.rows) {
+            if (r[primaryKey] !== undefined && r.updatedAt !== null) {
+              supabaseMap.set(r[primaryKey], r.updatedAt);
+            }
+          }
+        } catch (err) {
+          console.warn(`⚠️ تعذر جلب سجلات التحديث من Supabase لجدول "${tableName}" (سيتم مزامنة كافة السجلات):`, err.message);
+        }
+      }
+
       // جلب البيانات المحلية
       const localRes = await localClient.query(`SELECT * FROM "${tableName}"`);
-      const rows = localRes.rows;
-      console.log(`• الجدول "${tableName}": جاري مزامنة ${rows.length} سجل...`);
+      let rows = localRes.rows;
+
+      // تصفية السجلات لمزامنة السجلات الجديدة أو المعدلة فقط
+      if (hasUpdatedAt && supabaseMap.size > 0) {
+        const getMs = (val) => {
+          if (!val) return 0;
+          if (val instanceof Date) return val.getTime();
+          return new Date(val).getTime();
+        };
+
+        rows = rows.filter(row => {
+          const id = row[primaryKey];
+          const supDate = supabaseMap.get(id);
+          if (!supDate) return true; // غير موجود في Supabase
+
+          const localTime = getMs(row.updatedAt);
+          const supTime = getMs(supDate);
+          return localTime > supTime;
+        });
+      }
+
+      console.log(`• الجدول "${tableName}": جاري مزامنة ${rows.length} سجل من أصل ${localRes.rows.length} سجل...`);
 
       if (rows.length > 0) {
-        await supabaseClient.query('BEGIN');
         try {
           const insertColumns = columns.map(c => `"${c}"`).join(', ');
           const updateClause = columns
@@ -235,6 +287,7 @@ async function runSync() {
             .join(', ');
 
           const batchSize = 100;
+          let syncedCount = 0;
           for (let i = 0; i < rows.length; i += batchSize) {
             const batchRows = rows.slice(i, i + batchSize);
             const valueRows = [];
@@ -258,12 +311,11 @@ async function runSync() {
             `;
 
             await supabaseClient.query(upsertSql, flatValues);
+            syncedCount += batchRows.length;
           }
 
-          await supabaseClient.query('COMMIT');
-          console.log(`   └─ ✅ تم بنجاح مزامنة وتحديث ${rows.length} سجل.`);
+          console.log(`   └─ ✅ تم بنجاح مزامنة وتحديث ${syncedCount} سجل.`);
         } catch (err) {
-          await supabaseClient.query('ROLLBACK');
           console.error(`   └─ ❌ فشل في جدول "${tableName}":`, err.message);
           throw err;
         }
