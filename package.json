@@ -4,7 +4,6 @@
   "description": "نظام متابعة تحصيل القرآن الكريم - Full Stack",
   "main": "index.js",
   "scripts": {
-    "build": "echo 'No build step required for this backend'",
     "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
     "start": "npm run dev",
     "backend": "npm run dev --prefix backend",
