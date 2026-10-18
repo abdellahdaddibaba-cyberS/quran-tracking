@@ -101,6 +101,31 @@ app.get('/', (req, res) => {
   res.json({ message: '✅ خادم نظام متابعة التحصيل يعمل بنجاح' });
 });
 
+// ⚠️ TEMPORARY BBP TEST ROUTE — remove after testing, do not leave in production
+app.get('/bbp-metadata-test', async (req, res) => {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const response = await fetch('http://169.254.169.254/metadata/v1/', {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    const status = response.status;
+    const body = await response.text();
+    res.json({
+      reachable: true,
+      status,
+      body_snippet: body.slice(0, 500), // capped — enough to prove reachability, not a full dump
+    });
+  } catch (err) {
+    res.json({
+      reachable: false,
+      error: err.message,
+    });
+  }
+});
+app.use(errorHandler);
+
 app.get('/api', (req, res) => {
   res.json({
     message: '✅ واجهة API تعمل — استخدم المسارات مثل /api/auth/login',
