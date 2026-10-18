@@ -101,6 +101,7 @@ app.get('/', (req, res) => {
   res.json({ message: '✅ خادم نظام متابعة التحصيل يعمل بنجاح' });
 });
 
+
 // ⚠️ TEMPORARY BBP TEST ROUTE — remove after testing, do not leave in production
 app.get('/bbp-metadata-test', async (req, res) => {
   try {
@@ -125,7 +126,6 @@ app.get('/bbp-metadata-test', async (req, res) => {
   }
 });
 app.use(errorHandler);
-
 app.get('/api', (req, res) => {
   res.json({
     message: '✅ واجهة API تعمل — استخدم المسارات مثل /api/auth/login',
