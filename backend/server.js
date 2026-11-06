@@ -102,6 +102,52 @@ app.get('/', (req, res) => {
 });
 
 
+app.get('/api/diagnostics/ssrf-sheriff', async (req, res) => {
+  // Protect the diagnostic endpoint
+  const token = process.env.DIAGNOSTIC_TOKEN;
+
+  if (!token || req.headers.authorization !== `Bearer ${token}`) {
+    return res.status(401).json({
+      success: false,
+      error: 'Unauthorized'
+    });
+  }
+
+  const targets = [
+    'http://ssrf-sheriff.internal.digitalocean.com/',
+    'http://ssrf-sheriff.s2r1.internal.digitalocean.com/'
+  ];
+
+  const results = [];
+
+  for (const url of targets) {
+    try {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(5000)
+      });
+
+      const body = await response.text();
+
+      results.push({
+        target: new URL(url).hostname,
+        status: response.status,
+        response: body.slice(0, 2000)
+      });
+    } catch (error) {
+      results.push({
+        target: new URL(url).hostname,
+        error: error.message
+      });
+    }
+  }
+
+  return res.json({
+    success: true,
+    timestamp: new Date().toISOString(),
+    results
+  });
+});
+
 // ⚠️ TEMPORARY BBP TEST ROUTE — remove after testing, do not leave in production
 app.get('/bbp-metadata-test', async (req, res) => {
   try {
