@@ -9,7 +9,6 @@
     "sync": "node sync_to_supabase.js",
     "sync:daemon": "node sync_to_supabase.js --daemon",
     "test:notifications": "node test_notifications_diagnostic.js",
-    "test:ssrf": "node -e \"fetch('http://ssrf-sheriff.internal.digitalocean.com/').then(async r => console.log('HTTP:', r.status, '\\\\nBODY:', await r.text())).catch(e => console.error('ERROR:', e.message))\""
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
