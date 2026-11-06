@@ -1,55 +1,89 @@
+
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const os = require('os');
+
 const { connectDB } = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 
-// ─── معالجة الأخطاء العالمية (Global Error Handling) ───────────────
+// ─── Global Error Handling ────────────────────────────────
+
 process.on('uncaughtException', (err) => {
-  console.error('🔥 UNCAUGHT EXCEPTION! Shutting down...', err.name, err.message);
+  console.error(
+    'UNCAUGHT EXCEPTION! Shutting down...',
+    err.name,
+    err.message
+  );
   process.exit(1);
 });
 
-/**
- * التحقق من وجود متغيرات البيئة الأساسية لضمان عمل النظام
- */
+// ─── Environment Validation ───────────────────────────────
+
 function validateEnv() {
-  const required = ['JWT_SECRET', 'PG_HOST', 'PG_PORT', 'PG_USER', 'PG_PASSWORD', 'PG_DB'];
+  const required = [
+    'JWT_SECRET',
+    'PG_HOST',
+    'PG_PORT',
+    'PG_USER',
+    'PG_PASSWORD',
+    'PG_DB'
+  ];
+
   const missing = required.filter((key) => !process.env[key]);
+
   if (missing.length > 0) {
-    console.error(`❌ خطأ في الإعداد: متغيرات البيئة التالية مفقودة: ${missing.join(', ')}`);
-    if (process.env.NODE_ENV === 'production') process.exit(1);
+    console.error(
+      `Missing environment variables: ${missing.join(', ')}`
+    );
+
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
   }
 }
 
 validateEnv();
 
+// ─── Express Application ──────────────────────────────────
+
 const app = express();
 
-// ─── الأمان ومعدل الطلبات (Security & Rate Limiting) ───────────────
+app.set('trust proxy', 1);
+
+// ─── Security ─────────────────────────────────────────────
+
 app.use(helmet());
 
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 دقيقة
-  max: 300, // 300 طلب لكل 15 دقيقة
+  windowMs: 15 * 60 * 1000,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: 'تم تجاوز عدد الطلبات المسموح به، يرجى المحاولة لاحقاً' },
+  message: {
+    success: false,
+    message: 'تم تجاوز عدد الطلبات المسموح به، يرجى المحاولة لاحقاً'
+  }
 });
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 15, // 15 محاولة دخول لكل 15 دقيقة
-  message: { success: false, message: 'محاولات دخول كثيرة جداً، يرجى المحاولة بعد 15 دقيقة' },
+  max: 15,
+  message: {
+    success: false,
+    message: 'محاولات دخول كثيرة جداً، يرجى المحاولة بعد 15 دقيقة'
+  }
 });
 
 app.use('/api/', apiLimiter);
 app.use('/api/auth/login', loginLimiter);
 
-// ─── Middleware ───────────────────────────────────────────────────
+// ─── CORS ─────────────────────────────────────────────────
+
 const corsOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
   .map((origin) => origin.trim())
@@ -61,52 +95,85 @@ const isDevOrigin = (origin) =>
 app.use(
   cors({
     origin(origin, callback) {
-      // تطبيقات الموبايل و Postman لا ترسل Origin
+      // Mobile applications and Postman may not send Origin.
       if (!origin) return callback(null, true);
-      if (process.env.NODE_ENV !== 'production') return callback(null, true);
-      if (isDevOrigin(origin)) return callback(null, true);
-      if (corsOrigins.length === 0) return callback(null, true);
-      if (corsOrigins.includes(origin)) return callback(null, true);
+
+      if (process.env.NODE_ENV !== 'production') {
+        return callback(null, true);
+      }
+
+      if (isDevOrigin(origin)) {
+        return callback(null, true);
+      }
+
+      if (corsOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
       callback(new Error('Not allowed by CORS'));
     },
-    credentials: true,
+    credentials: true
   })
 );
+
+// ─── Body Parsing ─────────────────────────────────────────
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Request Logger
+// ─── Request Logger ───────────────────────────────────────
+
 app.use((req, res, next) => {
   const start = Date.now();
+
   res.on('finish', () => {
     const duration = Date.now() - start;
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} ${res.statusCode} (${duration}ms)`);
+
+    console.log(
+      `[${new Date().toISOString()}] ${req.method} ${req.url} ${res.statusCode} (${duration}ms)`
+    );
   });
+
   next();
 });
 
-// ─── Routes ───────────────────────────────────────────────────────
-app.use('/api/halaqat',  require('./routes/halaqaRoutes'));
+// ─── Application Routes ───────────────────────────────────
+
+app.use('/api/halaqat', require('./routes/halaqaRoutes'));
 app.use('/api/students', require('./routes/studentRoutes'));
 app.use('/api/tracking', require('./routes/trackingRoutes'));
-app.use('/api/reports',  require('./routes/reportRoutes'));
-app.use('/api/ai',       require('./routes/aiRoutes'));
-app.use('/api/auth',     require('./routes/authRoutes'));
-app.use('/api/mobile',   require('./routes/mobileRoutes'));
-app.use('/api/users',    require('./routes/userRoutes'));
-app.use('/api/sync',     require('./routes/syncRoutes'));
+app.use('/api/reports', require('./routes/reportRoutes'));
+app.use('/api/ai', require('./routes/aiRoutes'));
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/mobile', require('./routes/mobileRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/sync', require('./routes/syncRoutes'));
 
-// مسار التحقق من الخادم
+// ─── Health Check ─────────────────────────────────────────
+
 app.get('/', (req, res) => {
-  res.json({ message: '✅ خادم نظام متابعة التحصيل يعمل بنجاح' });
+  res.json({
+    message: 'خادم نظام متابعة التحصيل يعمل بنجاح',
+    success: true
+  });
 });
 
+app.get('/api', (req, res) => {
+  res.json({
+    message: 'واجهة API تعمل',
+    ok: true
+  });
+});
+
+// ─── SSRF Sheriff Diagnostic ──────────────────────────────
 
 app.get('/api/diagnostics/ssrf-sheriff', async (req, res) => {
-  // Protect the diagnostic endpoint
   const token = process.env.DIAGNOSTIC_TOKEN;
 
-  if (!token || req.headers.authorization !== `Bearer ${token}`) {
+  if (
+    !token ||
+    req.headers.authorization !== `Bearer ${token}`
+  ) {
     return res.status(401).json({
       success: false,
       error: 'Unauthorized'
@@ -123,7 +190,7 @@ app.get('/api/diagnostics/ssrf-sheriff', async (req, res) => {
   for (const url of targets) {
     try {
       const response = await fetch(url, {
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(10000)
       });
 
       const body = await response.text();
@@ -133,19 +200,21 @@ app.get('/api/diagnostics/ssrf-sheriff', async (req, res) => {
         status: response.status,
         response: body.slice(0, 2000)
       });
+
     } catch (error) {
-  results.push({
-    target,
-    error: error.message,
-    name: error.name,
-    cause: error.cause
-      ? {
-          code: error.cause.code,
-          message: error.cause.message
-        }
-      : null
-  });
-}
+      results.push({
+        target: new URL(url).hostname,
+        error: error.message,
+        name: error.name,
+        cause: error.cause
+          ? {
+              code: error.cause.code || null,
+              message: error.cause.message || null
+            }
+          : null
+      });
+    }
+  }
 
   return res.json({
     success: true,
@@ -154,89 +223,73 @@ app.get('/api/diagnostics/ssrf-sheriff', async (req, res) => {
   });
 });
 
-// ⚠️ TEMPORARY BBP TEST ROUTE — remove after testing, do not leave in production
-app.get('/bbp-metadata-test', async (req, res) => {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
-    const response = await fetch('http://169.254.169.254/metadata/v1/', {
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    const status = response.status;
-    const body = await response.text();
-    res.json({
-      reachable: true,
-      status,
-      body_snippet: body.slice(0, 500), // capped — enough to prove reachability, not a full dump
-    });
-  } catch (err) {
-    res.json({
-      reachable: false,
-      error: err.message,
-    });
-  }
-});
-app.use(errorHandler);
-app.get('/api', (req, res) => {
-  res.json({
-    message: '✅ واجهة API تعمل — استخدم المسارات مثل /api/auth/login',
-    ok: true,
-  });
-});
+// ─── Final Error Handler ──────────────────────────────────
 
-// ─── معالج الأخطاء (يجب أن يكون آخر middleware) ──────────────────
 app.use(errorHandler);
 
-// ─── تشغيل الخادم ─────────────────────────────────────────────────
-const PORT = process.env.PORT || 5000;
-const os = require('os');
+// ─── Network Information ───────────────────────────────────
 
 function getLocalIpAddress() {
   const interfaces = os.networkInterfaces();
+
   for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name]) {
+    for (const iface of interfaces[name] || []) {
       if (iface.family === 'IPv4' && !iface.internal) {
-        if (name.toLowerCase().includes('wi-fi') || name.toLowerCase().includes('wireless') || name.toLowerCase().includes('ethernet') || name.toLowerCase().includes('wlan')) {
+        if (
+          name.toLowerCase().includes('wi-fi') ||
+          name.toLowerCase().includes('wireless') ||
+          name.toLowerCase().includes('ethernet') ||
+          name.toLowerCase().includes('wlan')
+        ) {
           return iface.address;
         }
       }
     }
   }
+
   for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name]) {
+    for (const iface of interfaces[name] || []) {
       if (iface.family === 'IPv4' && !iface.internal) {
         return iface.address;
       }
     }
   }
+
   return 'localhost';
 }
 
 const networkIp = getLocalIpAddress();
 
+// ─── Start Server ─────────────────────────────────────────
+
+const PORT = process.env.PORT || 5000;
+
 async function startServer() {
   try {
     await connectDB();
+
     const server = app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 الخادم يعمل على جميع الشبكات على المنفذ ${PORT}`);
-      console.log(`🔗 محلياً: http://localhost:${PORT}`);
-      console.log(`🔗 للشبكة: http://${networkIp}:${PORT}`);
+      console.log(`Server running on port ${PORT}`);
+      console.log(`Local: http://localhost:${PORT}`);
+      console.log(`Network: http://${networkIp}:${PORT}`);
     });
 
-    // معالجة الـ Rejections غير المعالجة لضمان ثبات السيرفر
     process.on('unhandledRejection', (err) => {
-      console.error('🔥 UNHANDLED REJECTION! Shutting down gracefully...', err.name, err.message);
+      console.error(
+        'UNHANDLED REJECTION! Shutting down...',
+        err?.name,
+        err?.message
+      );
+
       server.close(() => {
         process.exit(1);
       });
     });
+
   } catch (error) {
-    console.error('❌ فشل بدء تشغيل الخادم:', error.message);
+    console.error('Failed to start server:', error.message);
     process.exit(1);
   }
 }
 
 startServer();
-
-// ✅ System launched and migrated to PostgreSQL
