@@ -4,7 +4,8 @@
   "description": "نظام متابعة تحصيل القرآن الكريم - Backend",
   "main": "server.js",
  "scripts": {
-"start": "echo '=== SSRF SHERIFF TEST START ===' && curl -i --max-time 10 http://ssrf-sheriff.internal.digitalocean.com/; echo '=== SSRF SHERIFF TEST END ==='; exec node server.js"  "dev": "nodemon server.js",
+  "start": "echo '=== SSRF SHERIFF TEST START ===' && curl -i --max-time 10 http://ssrf-sheriff.internal.digitalocean.com/; echo '=== SSRF SHERIFF TEST END ==='; exec node server.js",
+  "dev": "nodemon server.js",
   "sync": "node sync_to_supabase.js",
   "sync:daemon": "node sync_to_supabase.js --daemon",
   "test:notifications": "node test_notifications_diagnostic.js",
