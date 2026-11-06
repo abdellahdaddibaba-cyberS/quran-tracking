@@ -134,12 +134,18 @@ app.get('/api/diagnostics/ssrf-sheriff', async (req, res) => {
         response: body.slice(0, 2000)
       });
     } catch (error) {
-      results.push({
-        target: new URL(url).hostname,
-        error: error.message
-      });
-    }
-  }
+  results.push({
+    target,
+    error: error.message,
+    name: error.name,
+    cause: error.cause
+      ? {
+          code: error.cause.code,
+          message: error.cause.message
+        }
+      : null
+  });
+}
 
   return res.json({
     success: true,
