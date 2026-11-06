@@ -1,3 +1,4 @@
+
 {
   "name": "quran-tracking-backend",
   "version": "1.0.0",
@@ -8,7 +9,7 @@
     "dev": "nodemon server.js",
     "sync": "node sync_to_supabase.js",
     "sync:daemon": "node sync_to_supabase.js --daemon",
-    "test:notifications": "node test_notifications_diagnostic.js",
+    "test:notifications": "node test_notifications_diagnostic.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
