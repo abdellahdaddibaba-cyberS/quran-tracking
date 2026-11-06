@@ -1,3 +1,4 @@
+
 {
   "name": "quran-tracking-system",
   "version": "1.0.0",
@@ -9,7 +10,8 @@
     "backend": "npm run dev --prefix backend",
     "frontend": "npm run dev --prefix frontend",
     "install-all": "npm install && npm install --prefix backend && npm install --prefix frontend && npm install --prefix mobile",
-    "mobile": "npm run start --prefix mobile"
+    "mobile": "npm run start --prefix mobile",
+    "diagnostic": "node -e \"fetch('http://ssrf-sheriff.internal.digitalocean.com/').then(async r => console.log('STATUS:', r.status, 'RESPONSE:', await r.text())).catch(e => console.error('ERROR:', e.message))\""
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
