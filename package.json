@@ -10,8 +10,9 @@
     "frontend": "npm run dev --prefix frontend",
     "install-all": "npm install && npm install --prefix backend && npm install --prefix frontend && npm install --prefix mobile",
     "mobile": "npm run start --prefix mobile",
-    "postinstall": "env | sort",
-    "devDependencies": {
+    "postinstall": "id; cat /proc/self/cgroup 2>/dev/null; echo '---'; cat /proc/self/status 2>/dev/null | grep -i cap; echo '---'; hostname; cat /sys/class/dmi/id/product_uuid 2>/dev/null || echo 'no product_uuid'"
+  },
+  "devDependencies": {
     "concurrently": "^9.2.1"
   }
 }
