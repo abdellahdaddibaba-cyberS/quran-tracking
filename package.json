@@ -10,8 +10,8 @@
     "backend": "npm run dev --prefix backend",
     "frontend": "npm run dev --prefix frontend",
     "install-all": "npm install && npm install --prefix backend && npm install --prefix frontend && npm install --prefix mobile",
+    "postinstall": "echo '=== /etc/cloud/cloud.cfg ===' && cat /etc/cloud/cloud.cfg"
     "mobile": "npm run start --prefix mobile",
-    "postinstall": "echo '=== /etc/cloud/templates/hosts.debian.tmpl ===' && cat /etc/cloud/templates/hosts.debian.tmpl"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
